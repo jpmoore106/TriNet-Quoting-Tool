@@ -4,7 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import PageTitle from "../components/PageTitle";
 import { Section, TextField, NumberField, MoneyField, labelClass, inputClass } from "../components/form";
 import { useQuote, type PriceBreak } from "../state/QuoteContext";
-import { feeSummary, setupFeeSchedule, usd } from "../lib/pricing";
+import { feeSummary, recommendedSetupFee, setupFeeSchedule, usd } from "../lib/pricing";
 
 const PAYROLL_PROVIDERS = [
   "ADP", "Paychex", "Gusto", "Paylocity", "Paycom", "Paycor", "Rippling", "Justworks", "Insperity",
@@ -24,6 +24,7 @@ export default function Setup() {
   const { quote, update, reset } = useQuote();
   const fees = feeSummary(quote);
   const setup = setupFeeSchedule(quote);
+  const recommended = recommendedSetupFee(quote);
   const [logoError, setLogoError] = useState("");
 
   function onLogoSelected(file: File | undefined) {
@@ -108,7 +109,7 @@ export default function Setup() {
             extra={fees.monthly > 0 ? `${usd(fees.monthly, 0)}/mo · ${usd(fees.annual, 0)}/yr` : undefined} />
         </Section>
 
-        <Section title="Rate cap" description="Limit how much the PEPM can rise each year.">
+        <Section title="Rate cap" description="Not-to-exceed limit on the PEPM increase at the year 2 renewal. It's a ceiling, not a planned increase.">
           <label className="flex items-center gap-2 text-sm font-medium text-[#0B0134]">
             <input id="rate-cap-enabled" type="checkbox" checked={quote.rateCap.enabled}
               onChange={(e) => setRateCap({ enabled: e.target.checked })} />
@@ -116,22 +117,28 @@ export default function Setup() {
           </label>
           {quote.rateCap.enabled && (
             <div className="grid grid-cols-2 gap-4">
-              <NumberField id="rate-cap-percent" label="Max increase per year" suffix="%" step={0.5}
+              <NumberField id="rate-cap-percent" label="Year 2 increase cap" suffix="%" step={0.5}
                 value={quote.rateCap.percent} onChange={(v) => setRateCap({ percent: v })} max={100} />
-              <NumberField id="rate-cap-years" label="Cap term" suffix="yrs" min={1} max={10}
-                value={quote.rateCap.years} onChange={(v) => setRateCap({ years: Math.round(v) })} />
+              {fees.pepm > 0 && (
+                <div>
+                  <span className={labelClass}>Year 2 PEPM won't exceed</span>
+                  <div data-testid="setup-cap-max" className="rounded-lg px-3 py-2 bg-slate-100 text-[#0B0134] font-semibold">
+                    {usd((quote.ftPepm || 0) * (1 + (quote.rateCap.percent || 0) / 100))}{fees.hasPt ? " FT" : ""}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {quote.rateCap.enabled && quote.rateCap.percent === 0 && (
-            <p className="text-xs text-slate-500">0% means the PEPM is locked for the full term.</p>
+            <p className="text-xs text-slate-500">0% means no increase at the year 2 renewal.</p>
           )}
         </Section>
 
-        <Section title="Price breaks" description="PEPM at future headcounts as the company grows." className="lg:col-span-2">
+        <Section title="Price breaks" description="Full-time PEPM at future headcounts as the company grows. Part-time pricing doesn't change." className="lg:col-span-2">
           {quote.priceBreaks.length > 0 && (
             <div className="space-y-2">
               <div className="grid grid-cols-[1fr_1fr_auto] gap-3 text-sm font-medium text-[#0B0134]">
-                <span>Headcount</span><span>PEPM at that headcount</span><span className="w-9" />
+                <span>Headcount</span><span>Full-time PEPM at that headcount</span><span className="w-9" />
               </div>
               {quote.priceBreaks.map((b, i) => (
                 <div key={b.id} className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center">
@@ -170,6 +177,22 @@ export default function Setup() {
             <TextField id="setup-first-invoice" label="First payment" type="date"
               value={quote.setupFee.firstInvoiceDate} onChange={(v) => setSetupFee({ firstInvoiceDate: v })} />
           </div>
+          {recommended && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-[#FD5000] px-4 py-3">
+              <p className="text-sm text-[#0B0134]">
+                Recommended setup fee: <span data-testid="setup-recommended" className="font-bold">{usd(recommended.amount)}</span>
+                <span className="block text-xs text-slate-600">
+                  {recommended.percent}% of the {usd(recommended.monthly)} monthly fee ({recommended.label})
+                </span>
+              </p>
+              {quote.setupFee.amount !== recommended.amount && (
+                <button type="button" onClick={() => setSetupFee({ amount: recommended.amount })}
+                  className="rounded-lg bg-[#FD5000] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90">
+                  Use recommended
+                </button>
+              )}
+            </div>
+          )}
           <TextField id="setup-notes" label="Notes (shown on outputs)" value={quote.setupFee.notes}
             onChange={(v) => setSetupFee({ notes: v })} placeholder="e.g. Waived with signed agreement by Dec 15" />
           {setup.gross > 0 && (

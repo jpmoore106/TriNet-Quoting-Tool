@@ -2,10 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 
 export type PriceBreak = { id: string; headcount: number; pepm: number };
 
+// Not-to-exceed cap on the PEPM increase at the year 2 renewal (not an automatic increase).
 export type RateCap = {
   enabled: boolean;
-  percent: number; // maximum PEPM increase per year
-  years: number; // how many years the cap applies
+  percent: number;
 };
 
 export type SetupFee = {
@@ -44,7 +44,7 @@ const EMPTY: QuoteInputs = {
   ftPepm: 0,
   ptPepm: 0,
   priceBreaks: [],
-  rateCap: { enabled: false, percent: 0, years: 3 },
+  rateCap: { enabled: false, percent: 0 },
   setupFee: { amount: 0, discount: 0, installments: 1, firstInvoiceDate: "", notes: "" },
 };
 

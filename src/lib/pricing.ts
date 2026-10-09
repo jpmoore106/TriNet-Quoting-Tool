@@ -26,9 +26,10 @@ export function feeSummary(q: QuoteInputs) {
   };
 }
 
-// Growth pricing: cost at each future headcount, compared with today's PEPM.
+// Growth pricing: price breaks replace the full-time PEPM at a future headcount
+// (part-time pricing is unchanged), so savings are measured against today's FT PEPM.
 export function priceBreakRows(q: QuoteInputs) {
-  const { pepm: currentPepm } = feeSummary(q);
+  const ftPepm = q.ftPepm || 0;
   return q.priceBreaks
     .filter((b) => b.headcount > 0 && b.pepm > 0)
     .sort((a, b) => a.headcount - b.headcount)
@@ -36,18 +37,39 @@ export function priceBreakRows(q: QuoteInputs) {
       ...b,
       monthly: b.headcount * b.pepm,
       annual: b.headcount * b.pepm * 12,
-      savingsPerEmployee: currentPepm > 0 ? currentPepm - b.pepm : 0,
-      savingsPercent: currentPepm > 0 ? ((currentPepm - b.pepm) / currentPepm) * 100 : 0,
+      savingsPerEmployee: ftPepm > 0 ? ftPepm - b.pepm : 0,
+      savingsPercent: ftPepm > 0 ? ((ftPepm - b.pepm) / ftPepm) * 100 : 0,
     }));
 }
 
-// Highest PEPM allowed each year under the rate cap (year 1 is today's PEPM).
-export function rateCapSchedule(q: QuoteInputs) {
-  if (!q.rateCap.enabled) return [];
-  const { pepm } = feeSummary(q);
-  const years = Math.max(1, Math.min(10, Math.round(q.rateCap.years || 1)));
-  const rate = (q.rateCap.percent || 0) / 100;
-  return Array.from({ length: years }, (_, i) => ({ year: i + 1, maxPepm: pepm * Math.pow(1 + rate, i) }));
+// Rate cap: a not-to-exceed limit on the PEPM increase at the year 2 renewal only.
+export function rateCapLimits(q: QuoteInputs) {
+  if (!q.rateCap.enabled) return null;
+  const fees = feeSummary(q);
+  const factor = 1 + Math.max(0, q.rateCap.percent || 0) / 100;
+  return {
+    percent: Math.max(0, q.rateCap.percent || 0),
+    ftMax: (q.ftPepm || 0) * factor,
+    ptMax: fees.hasPt ? (q.ptPepm || 0) * factor : 0,
+    pepmMax: fees.pepm * factor,
+    monthlyMax: fees.monthly * factor,
+  };
+}
+
+// Recommended setup fee: a percentage of the monthly fee (PEPM × WSE) that falls as the group grows.
+export const SETUP_FEE_TIERS = [
+  { maxWse: 25, percent: 70, label: "25 WSE or fewer" },
+  { maxWse: 50, percent: 60, label: "26–50 WSE" },
+  { maxWse: 74, percent: 50, label: "51–74 WSE" },
+  { maxWse: 250, percent: 35, label: "75–250 WSE" },
+  { maxWse: Infinity, percent: 25, label: "More than 250 WSE" },
+];
+
+export function recommendedSetupFee(q: QuoteInputs) {
+  const fees = feeSummary(q);
+  if (fees.totalWse === 0 || fees.monthly === 0) return null;
+  const tier = SETUP_FEE_TIERS.find((t) => fees.totalWse <= t.maxWse)!;
+  return { ...tier, monthly: fees.monthly, amount: Math.round(fees.monthly * tier.percent) / 100 };
 }
 
 // Setup fee net of discount, split into equal installments (the last absorbs rounding).
