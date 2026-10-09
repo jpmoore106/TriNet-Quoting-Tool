@@ -203,7 +203,7 @@ export default function PaperworkDeadlines() {
   const [firstCheck, setFirstCheck] = useState<string>(format(addDays(new Date(), 20), "yyyy-MM-dd"));
   const [benefitsStart, setBenefitsStart] = useState<string>(format(addDays(new Date(), 30), "yyyy-MM-dd"));
   const { totalWse } = useQuote();
-  // Combined WSE count from the Home page, if entered.
+  // Combined WSE count from the Setup page, if entered.
   const [employeeCount, setEmployeeCount] = useState<number>(totalWse > 0 ? totalWse : 25);
   const [serviceModel, setServiceModel] = useState<ServiceModel>("Core");
   const [earlyAccess, setEarlyAccess] = useState<EarlyAccessOption>("None");

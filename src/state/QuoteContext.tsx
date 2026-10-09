@@ -1,6 +1,24 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
+export type PriceBreak = { id: string; headcount: number; pepm: number };
+
+export type RateCap = {
+  enabled: boolean;
+  percent: number; // maximum PEPM increase per year
+  years: number; // how many years the cap applies
+};
+
+export type SetupFee = {
+  amount: number; // standard setup fee
+  discount: number; // amount waived
+  installments: number; // 1 = paid up front
+  firstInvoiceDate: string; // yyyy-MM-dd, optional
+  notes: string;
+};
+
 export type QuoteInputs = {
+  companyName: string;
+  repName: string;
   ftWse: number;
   ptWse: number;
   companyLogo: string | null; // data URL
@@ -9,9 +27,14 @@ export type QuoteInputs = {
   medicalRenewalDate: string; // yyyy-MM-dd
   ftPepm: number; // Professional Service Fee per FT employee per month
   ptPepm: number; // Professional Service Fee per PT employee per month
+  priceBreaks: PriceBreak[]; // growth pricing: PEPM at a future headcount
+  rateCap: RateCap;
+  setupFee: SetupFee;
 };
 
 const EMPTY: QuoteInputs = {
+  companyName: "",
+  repName: "",
   ftWse: 0,
   ptWse: 0,
   companyLogo: null,
@@ -20,6 +43,9 @@ const EMPTY: QuoteInputs = {
   medicalRenewalDate: "",
   ftPepm: 0,
   ptPepm: 0,
+  priceBreaks: [],
+  rateCap: { enabled: false, percent: 0, years: 3 },
+  setupFee: { amount: 0, discount: 0, installments: 1, firstInvoiceDate: "", notes: "" },
 };
 
 const STORAGE_KEY = "trinet-quote-inputs";

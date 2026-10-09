@@ -1,103 +1,166 @@
+import type React from "react";
 import { Link } from "react-router-dom";
-import { Check } from "lucide-react";
+import { Check, TrendingDown, ShieldCheck, Rocket, Pencil } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
 import PageTitle from "../components/PageTitle";
 import { useQuote } from "../state/QuoteContext";
 import { SERVICE_INCLUSIONS } from "../data/serviceInclusions";
-
-const WORKDAYS_PER_YEAR = 260;
-
-const usd = (n: number, digits = 2) =>
-  n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: digits, maximumFractionDigits: digits });
-
-const labelClass = "block text-sm font-medium mb-1 text-[#0B0134]";
-const inputClass = "w-full border border-slate-700 bg-slate-900 rounded-lg pl-7 pr-3 py-2 text-slate-100";
+import { feeSummary, priceBreakRows, rateCapSchedule, setupFeeSchedule, usd } from "../lib/pricing";
 
 export default function ProfessionalServiceFees() {
-  const { quote, update, totalWse } = useQuote();
-  const ft = quote.ftWse || 0;
-  const pt = quote.ptWse || 0;
-  const hasPt = pt > 0;
-
-  const ftMonthly = ft * (quote.ftPepm || 0);
-  const ptMonthly = hasPt ? pt * (quote.ptPepm || 0) : 0;
-  const monthly = ftMonthly + ptMonthly;
-  // Blended PEPM: total monthly fee spread across every WSE (FT and PT).
-  const pepm = totalWse > 0 ? monthly / totalWse : quote.ftPepm || 0;
-  const annual = monthly * 12;
-  const perWorkday = (pepm * 12) / WORKDAYS_PER_YEAR;
-  const ftShare = monthly > 0 ? (ftMonthly / monthly) * 100 : 0;
-
-  const toRate = (v: string) => Math.max(0, parseFloat(v) || 0);
+  const { quote } = useQuote();
+  const fees = feeSummary(quote);
+  const breaks = priceBreakRows(quote);
+  const cap = rateCapSchedule(quote);
+  const setup = setupFeeSchedule(quote);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      <PageTitle
-        title="Professional Service Fees"
-        subtitle="One simple per-employee fee, and everything it includes."
-      />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageTitle title="Professional Service Fees" subtitle="One simple per-employee fee, and everything it includes." />
+        <Link to="/" className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/25">
+          <Pencil className="h-4 w-4" /> Edit pricing on Setup
+        </Link>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="shadow-sm border-slate-800">
-          <CardContent className="p-4 sm:p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-[#0B0134]">PEPM rates</h3>
-            {totalWse === 0 && (
-              <p className="text-sm text-slate-600">
-                Enter FT and PT WSE counts on the <Link to="/" className="underline text-[#FD5000]">Home page</Link> to see totals.
-              </p>
-            )}
-            <RateInput id="ft-pepm" label={`Full-time PEPM${ft ? ` (${ft} FT WSE)` : ""}`}
-              value={quote.ftPepm} onChange={(v) => update({ ftPepm: toRate(v) })} />
-            {hasPt && (
-              <RateInput id="pt-pepm" label={`Part-time PEPM (${pt} PT WSE)`}
-                value={quote.ptPepm} onChange={(v) => update({ ptPepm: toRate(v) })} />
-            )}
-            {!hasPt && (
-              <p className="text-xs text-slate-500">
-                Add PT WSE on the Home page to enter a part-time rate and see a blended PEPM.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <section aria-label="Fee summary" className="lg:col-span-2 rounded-2xl bg-[#0B0134] text-white p-6 sm:p-8 shadow-sm">
-          <p className="text-sm uppercase tracking-wider text-[#FD5000] font-semibold">
-            {hasPt ? "Blended PEPM" : "Professional Service Fee"}
-          </p>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span data-testid="pepm" className="text-5xl sm:text-6xl font-bold">{usd(pepm)}</span>
-            <span className="text-slate-300">per employee / month</span>
-          </div>
-          {pepm > 0 && (
-            <p className="mt-2 text-slate-300">
-              That's about <span className="text-white font-semibold">{usd(perWorkday)}</span> per employee per workday.
+      <section aria-label="Fee summary" className="rounded-2xl bg-[#0B0134] text-white p-6 sm:p-8 shadow-sm">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div>
+            <p className="text-sm uppercase tracking-wider text-[#FD5000] font-semibold">
+              {fees.hasPt ? "Blended PEPM" : "Professional Service Fee"}
             </p>
-          )}
-
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Stat label="Employees covered" value={totalWse > 0 ? String(totalWse) : "—"}
-              detail={hasPt ? `${ft} FT · ${pt} PT` : undefined} />
-            <Stat label="Monthly fee" value={monthly > 0 ? usd(monthly, 0) : "—"} testId="monthly" />
-            <Stat label="Annual fee" value={annual > 0 ? usd(annual, 0) : "—"} testId="annual" />
-          </div>
-
-          {hasPt && monthly > 0 && (
-            <div className="mt-6">
-              <div className="flex h-3 overflow-hidden rounded-full bg-white/10" role="img"
-                aria-label={`Full-time ${Math.round(ftShare)}% and part-time ${Math.round(100 - ftShare)}% of the monthly fee`}>
-                <div className="bg-[#FD5000]" style={{ width: `${ftShare}%` }} />
-                <div className="bg-white/60" style={{ width: `${100 - ftShare}%` }} />
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+              <span data-testid="pepm" className="text-5xl sm:text-6xl font-bold">{usd(fees.pepm)}</span>
+              <span className="text-slate-300">per employee / month</span>
+            </div>
+            {fees.pepm > 0 ? (
+              <p className="mt-2 text-slate-300">
+                That's about <span className="text-white font-semibold">{usd(fees.perWorkday)}</span> per employee per workday.
+              </p>
+            ) : (
+              <p className="mt-2 text-slate-300">
+                Enter PEPM rates on the <Link to="/" className="underline text-[#FD5000]">Setup page</Link>.
+              </p>
+            )}
+            {fees.hasPt && fees.monthly > 0 && (
+              <div className="mt-6">
+                <div className="flex h-3 overflow-hidden rounded-full bg-white/10" role="img"
+                  aria-label={`Full-time ${Math.round(fees.ftShare)}% and part-time ${Math.round(100 - fees.ftShare)}% of the monthly fee`}>
+                  <div className="bg-[#FD5000]" style={{ width: `${fees.ftShare}%` }} />
+                  <div className="bg-white/60" style={{ width: `${100 - fees.ftShare}%` }} />
+                </div>
+                <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm text-slate-300">
+                  <span><span className="inline-block h-2 w-2 rounded-full bg-[#FD5000] mr-1.5" />
+                    Full-time: {fees.ft} × {usd(quote.ftPepm || 0)} = {usd(fees.ftMonthly, 0)}/mo</span>
+                  <span><span className="inline-block h-2 w-2 rounded-full bg-white/60 mr-1.5" />
+                    Part-time: {fees.pt} × {usd(quote.ptPepm || 0)} = {usd(fees.ptMonthly, 0)}/mo</span>
+                </div>
               </div>
-              <div className="mt-2 flex justify-between text-sm text-slate-300">
-                <span><span className="inline-block h-2 w-2 rounded-full bg-[#FD5000] mr-1.5" />
-                  Full-time: {ft} × {usd(quote.ftPepm || 0)} = {usd(ftMonthly, 0)}/mo</span>
-                <span><span className="inline-block h-2 w-2 rounded-full bg-white/60 mr-1.5" />
-                  Part-time: {pt} × {usd(quote.ptPepm || 0)} = {usd(ptMonthly, 0)}/mo</span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-4 content-start">
+            <Stat label="Employees covered" value={fees.totalWse > 0 ? String(fees.totalWse) : "—"}
+              detail={fees.hasPt ? `${fees.ft} FT · ${fees.pt} PT` : undefined} />
+            <Stat label="Monthly fee" value={fees.monthly > 0 ? usd(fees.monthly, 0) : "—"} testId="monthly" />
+            <Stat label="Annual fee" value={fees.annual > 0 ? usd(fees.annual, 0) : "—"} testId="annual" />
+          </div>
+        </div>
+      </section>
+
+      {(breaks.length > 0 || cap.length > 0) && (
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {breaks.length > 0 && (
+            <FeatureCard icon={TrendingDown} title="Price breaks as you grow" className={cap.length ? "lg:col-span-2" : "lg:col-span-3"}
+              subtitle="Your PEPM drops as your team reaches each headcount.">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" data-testid="price-breaks">
+                  <thead>
+                    <tr className="text-left text-slate-500 border-b border-slate-200">
+                      <th className="py-2 pr-4 font-medium">Headcount</th>
+                      <th className="py-2 pr-4 font-medium">PEPM</th>
+                      <th className="py-2 pr-4 font-medium">Monthly</th>
+                      <th className="py-2 pr-4 font-medium">Annual</th>
+                      <th className="py-2 font-medium">vs. today</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-[#0B0134]">
+                    {fees.totalWse > 0 && (
+                      <tr className="border-b border-slate-100 text-slate-500">
+                        <td className="py-2 pr-4">{fees.totalWse} (today)</td>
+                        <td className="py-2 pr-4">{usd(fees.pepm)}</td>
+                        <td className="py-2 pr-4">{usd(fees.monthly, 0)}</td>
+                        <td className="py-2 pr-4">{usd(fees.annual, 0)}</td>
+                        <td className="py-2">—</td>
+                      </tr>
+                    )}
+                    {breaks.map((b) => (
+                      <tr key={b.id} className="border-b border-slate-100 last:border-0">
+                        <td className="py-2 pr-4 font-semibold">{b.headcount}+</td>
+                        <td className="py-2 pr-4 font-semibold">{usd(b.pepm)}</td>
+                        <td className="py-2 pr-4">{usd(b.monthly, 0)}</td>
+                        <td className="py-2 pr-4">{usd(b.annual, 0)}</td>
+                        <td className="py-2">
+                          {b.savingsPerEmployee > 0 ? (
+                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 font-medium">
+                              {usd(b.savingsPerEmployee)} less ({b.savingsPercent.toFixed(1)}%)
+                            </span>
+                          ) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </FeatureCard>
+          )}
+          {cap.length > 0 && (
+            <FeatureCard icon={ShieldCheck} title="Rate protection" className={breaks.length ? "" : "lg:col-span-3"}
+              subtitle={quote.rateCap.percent > 0
+                ? `Your PEPM can't rise more than ${quote.rateCap.percent}% a year for ${cap.length} years.`
+                : `Your PEPM is locked for ${cap.length} years.`}>
+              <ul className="space-y-2 text-sm" data-testid="rate-cap">
+                {cap.map((y) => (
+                  <li key={y.year} className="flex justify-between border-b border-slate-100 last:border-0 pb-2">
+                    <span className="text-slate-500">Year {y.year}{y.year === 1 ? " (today)" : " max"}</span>
+                    <span className="font-semibold text-[#0B0134]">{usd(y.maxPepm)}</span>
+                  </li>
+                ))}
+              </ul>
+            </FeatureCard>
+          )}
+        </div>
+      )}
+
+      {setup.gross > 0 && (
+        <div className="mt-6">
+          <FeatureCard icon={Rocket} title="Setup fee" subtitle="One-time implementation to get your team onto TriNet.">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="space-y-2 text-sm" data-testid="setup-fee">
+                <Row label="Setup fee" value={usd(setup.gross)} />
+                {setup.discount > 0 && <Row label="Discount" value={`−${usd(setup.discount)}`} accent />}
+                <div className="flex justify-between border-t border-slate-200 pt-2">
+                  <span className="font-semibold text-[#0B0134]">You pay</span>
+                  <span className="text-xl font-bold text-[#0B0134]">{usd(setup.net)}</span>
+                </div>
+                {quote.setupFee.notes && <p className="text-xs text-slate-500 pt-1">{quote.setupFee.notes}</p>}
+              </div>
+              <div className="lg:col-span-2">
+                <p className="text-sm font-medium text-[#0B0134] mb-2">
+                  {setup.count > 1 ? `Split into ${setup.count} payments` : "Payment"}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2" data-testid="setup-schedule">
+                  {setup.schedule.map((p) => (
+                    <div key={p.number} className="rounded-lg border border-slate-200 px-3 py-2">
+                      <p className="text-xs text-slate-500">{p.date || `Payment ${p.number}`}</p>
+                      <p className="font-semibold text-[#0B0134]">{usd(p.amount)}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          )}
-        </section>
-      </div>
+          </FeatureCard>
+        </div>
+      )}
 
       <h3 className="mt-10 mb-1 text-xl font-bold text-white">What's included in your fee</h3>
       <p className="mb-4 text-sm text-white/90">Every employee is covered by the full TriNet service, with no per-service add-ons for the essentials below.</p>
@@ -130,15 +193,32 @@ export default function ProfessionalServiceFees() {
   );
 }
 
-function RateInput({ id, label, value, onChange }: { id: string; label: string; value: number; onChange: (v: string) => void }) {
+function FeatureCard({ icon: Icon, title, subtitle, children, className = "" }: {
+  icon: typeof Check; title: string; subtitle: string; children: React.ReactNode; className?: string;
+}) {
   return (
-    <div>
-      <label htmlFor={id} className={labelClass}>{label}</label>
-      <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-        <input id={id} type="number" min={0} step="0.01" inputMode="decimal" className={inputClass}
-          value={value || ""} placeholder="0.00" onChange={(e) => onChange(e.target.value)} />
-      </div>
+    <Card className={`shadow-sm border-slate-800 ${className}`}>
+      <CardContent className="p-5 sm:p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FD5000]/10 text-[#FD5000]">
+            <Icon className="h-6 w-6" aria-hidden />
+          </span>
+          <div>
+            <h3 className="text-lg font-semibold text-[#0B0134]">{title}</h3>
+            <p className="text-sm text-slate-500">{subtitle}</p>
+          </div>
+        </div>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Row({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-slate-500">{label}</span>
+      <span className={accent ? "font-medium text-emerald-700" : "font-medium text-[#0B0134]"}>{value}</span>
     </div>
   );
 }
