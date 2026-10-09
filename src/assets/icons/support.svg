@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke-width="4" stroke-linecap="square">
+  <!-- Service & support, drawn to match the TriNet icon style: navy line work with an orange element -->
+  <path d="M12 34V30a20 20 0 0 1 40 0v4" stroke="#0B0134"/>
+  <rect x="10" y="34" width="10" height="16" rx="3" stroke="#0B0134"/>
+  <rect x="44" y="34" width="10" height="16" rx="3" stroke="#0B0134"/>
+  <path d="M49 50v3a5 5 0 0 1-5 5h-8" stroke="#FD5000"/>
+</svg>

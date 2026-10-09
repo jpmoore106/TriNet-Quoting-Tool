@@ -2,7 +2,10 @@ import type React from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { ArrowLeft, Printer } from "lucide-react";
-import TriNetLogo from "../assets/trinet_white_rgb_md.png";
+import TriNetLogo from "../assets/trinet_logo_full_color.png";
+import WingMotif from "../components/WingMotif";
+import { primaryButton } from "../components/form";
+import { KEY_MESSAGES } from "../data/brandMessages";
 import { useQuote } from "../state/QuoteContext";
 import { SERVICE_INCLUSIONS } from "../data/serviceInclusions";
 import { feeSummary, formatDate, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../lib/pricing";
@@ -26,37 +29,37 @@ export default function ExecutiveSummary() {
   ].join("");
 
   return (
-    <div className="min-h-screen bg-slate-200 print:bg-white py-6 print:py-0">
+    <div className="min-h-screen bg-canvas print:bg-white py-6 print:py-0">
       <div className="no-print max-w-[8.5in] mx-auto mb-4 px-4 flex justify-between">
-        <Link to="/outputs" className="inline-flex items-center gap-1.5 text-sm font-medium text-[#0B0134] hover:underline">
+        <Link to="/outputs" className="inline-flex items-center gap-1.5 text-sm font-medium text-navy hover:underline">
           <ArrowLeft className="h-4 w-4" /> Back to outputs
         </Link>
         <button type="button" onClick={() => window.print()}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#FD5000] px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+          className={primaryButton}>
           <Printer className="h-4 w-4" /> Print / Save as PDF
         </button>
       </div>
 
-      <article className="exec-page bg-white max-w-[8.5in] mx-auto shadow-lg print:shadow-none text-[#0B0134] text-[13px] leading-snug"
-        style={{ fontFamily: "'Avenir Next','Avenir',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif" }}>
-        <header className="bg-[#0B0134] px-10 py-6 flex items-center justify-between gap-6">
+      <article className="exec-page relative overflow-hidden bg-white max-w-[8.5in] mx-auto shadow-lg print:shadow-none text-navy text-[13px] leading-snug font-brand">
+        {/* On white, use the full-color logo; one wing motif per layout. */}
+        <WingMotif size={72} thickness={18} className="right-0 top-0" />
+        <header className="px-10 pt-7 pb-4 flex items-end justify-between gap-6 border-b border-tngray-light">
           <div>
-            <img src={TriNetLogo} alt="TriNet" className="h-7 w-auto" />
-            <p className="mt-4 text-xs uppercase tracking-wider font-semibold text-[#FD5000]">Executive summary</p>
-            <h1 className="text-3xl font-bold text-white">{company}</h1>
-            <p className="text-sm text-slate-300">
+            <img src={TriNetLogo} alt="TriNet" className="h-8 w-auto" />
+            <h1 className="mt-4 text-3xl font-bold leading-tight">
+              <span className="block text-orange">Executive Summary</span>
+              {company}
+            </h1>
+            <p className="mt-1 text-sm text-tngray-dark">
               {quote.repName ? `Prepared by ${quote.repName} · ` : ""}{format(new Date(), "MMMM d, yyyy")}
             </p>
           </div>
           {quote.companyLogo && (
-            <div className="rounded-lg bg-white p-3">
-              <img src={quote.companyLogo} alt={`${company} logo`} className="h-14 max-w-[160px] object-contain" />
-            </div>
+            <img src={quote.companyLogo} alt={`${company} logo`} className="h-16 max-w-[180px] object-contain mr-10" />
           )}
         </header>
-        <div className="h-1.5 bg-[#FD5000]" />
 
-        <div className="px-10 py-7 space-y-6">
+        <div className="px-10 py-5 space-y-[18px]">
           <section>
             <H>Where you are today</H>
             <p>{today}</p>
@@ -72,7 +75,7 @@ export default function ExecutiveSummary() {
                 detail={setup.discount > 0 ? `${usd(setup.discount, 0)} discount` : setup.count > 1 ? `${setup.count} payments` : undefined} />
             </div>
             {fees.hasPt && (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-tngray-dark">
                 {fees.ft} full-time × {usd(quote.ftPepm || 0)} + {fees.pt} part-time × {usd(quote.ptPepm || 0)} per month.
               </p>
             )}
@@ -84,10 +87,10 @@ export default function ExecutiveSummary() {
                 <div>
                   <H>Price breaks as you grow</H>
                   <table className="w-full">
-                    <thead><tr className="text-left text-slate-500 border-b"><th className="py-1 font-medium">Headcount</th><th className="py-1 font-medium">FT PEPM</th><th className="py-1 font-medium">Monthly (FT)</th></tr></thead>
+                    <thead><tr className="text-left text-tngray-dark border-b"><th className="py-1 font-medium">Headcount</th><th className="py-1 font-medium">FT PEPM</th><th className="py-1 font-medium">Monthly (FT)</th></tr></thead>
                     <tbody>
                       {breaks.map((b) => (
-                        <tr key={b.id} className="border-b border-slate-100">
+                        <tr key={b.id} className="border-b border-tngray-light">
                           <td className="py-1">{b.headcount}+</td><td className="py-1 font-semibold">{usd(b.pepm)}</td><td className="py-1">{usd(b.monthly, 0)}</td>
                         </tr>
                       ))}
@@ -103,7 +106,7 @@ export default function ExecutiveSummary() {
                       ? `At the year 2 renewal, the PEPM won't increase more than ${cap.percent}%.`
                       : "The PEPM won't increase at the year 2 renewal."}
                   </p>
-                  <p className="text-slate-500">
+                  <p className="text-tngray-dark">
                     Year 2 maximum: {usd(cap.ftMax)}{fees.hasPt ? ` full-time · ${usd(cap.ptMax)} part-time` : " PEPM"}.
                     A not-to-exceed cap, not a planned increase.
                   </p>
@@ -120,7 +123,7 @@ export default function ExecutiveSummary() {
                 {setup.count > 1 ? `, paid in ${setup.count} payments of ${usd(setup.schedule[0].amount)}` : ""}
                 {setup.count > 1 && setup.schedule[0].date ? ` starting ${setup.schedule[0].date}` : ""}.
               </p>
-              {quote.setupFee.notes && <p className="text-slate-500 mt-1">{quote.setupFee.notes}</p>}
+              {quote.setupFee.notes && <p className="text-tngray-dark mt-1">{quote.setupFee.notes}</p>}
             </section>
           )}
 
@@ -128,10 +131,22 @@ export default function ExecutiveSummary() {
             <H>What's included</H>
             <div className="grid grid-cols-3 gap-x-6 gap-y-3">
               {SERVICE_INCLUSIONS.map((c) => (
-                <div key={c.title}>
-                  <p className="font-semibold border-l-4 border-[#FD5000] pl-2">{c.title}</p>
-                  <p className="text-slate-600 pl-3">{c.items.slice(0, 3).join(" · ")}</p>
+                <div key={c.title} className="flex gap-2.5">
+                  <img src={c.icon} alt="" className="h-8 w-8 shrink-0 object-contain" />
+                  <div>
+                    <p className="font-bold">{c.title}</p>
+                    <p className="text-tngray-dark">{c.items.slice(0, 2).join(" · ")}</p>
+                  </div>
                 </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <H>Why TriNet</H>
+            <div className="grid grid-cols-3 gap-3">
+              {KEY_MESSAGES.map((m) => (
+                <p key={m.title} className="rounded-lg bg-canvas px-3 py-2 font-bold">{m.title}</p>
               ))}
             </div>
           </section>
@@ -152,15 +167,19 @@ export default function ExecutiveSummary() {
 }
 
 function H({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-xs uppercase tracking-wider font-bold text-[#FD5000] mb-1.5">{children}</h2>;
+  return (
+    <h2 className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-navy">
+      <span className="h-2.5 w-2.5 bg-orange" aria-hidden />{children}
+    </h2>
+  );
 }
 
 function Tile({ label, value, detail, highlight }: { label: string; value: string; detail?: string; highlight?: boolean }) {
   return (
-    <div className={`rounded-lg p-3 ${highlight ? "bg-[#0B0134] text-white" : "bg-slate-100"}`}>
-      <p className={`text-[10px] uppercase tracking-wider ${highlight ? "text-[#FD5000]" : "text-slate-500"}`}>{label}</p>
+    <div className={`rounded-lg p-3 ${highlight ? "bg-navy text-white" : "bg-canvas"}`}>
+      <p className={`text-[10px] font-semibold uppercase tracking-wider ${highlight ? "text-orange" : "text-tngray-dark"}`}>{label}</p>
       <p className="text-xl font-bold">{value}</p>
-      {detail && <p className={`text-[11px] ${highlight ? "text-slate-300" : "text-slate-500"}`}>{detail}</p>}
+      {detail && <p className={`text-[11px] ${highlight ? "text-white/80" : "text-tngray-dark"}`}>{detail}</p>}
     </div>
   );
 }

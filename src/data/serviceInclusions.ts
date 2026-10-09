@@ -1,11 +1,16 @@
 // What's included in the Professional Service Fee (PEPM).
 // DRAFT: placeholder wording to be replaced with TriNet's official list of included services.
-import type { LucideIcon } from "lucide-react";
-import { Banknote, HeartPulse, Users, ShieldCheck, MonitorSmartphone, Headset } from "lucide-react";
+// Icons are TriNet's official icon set (brand playbook p.150); "support" is drawn to match.
+import payrollIcon from "../assets/icons/payroll.png";
+import benefitsIcon from "../assets/icons/benefits.png";
+import hrIcon from "../assets/icons/hr.png";
+import riskIcon from "../assets/icons/risk.png";
+import technologyIcon from "../assets/icons/technology.png";
+import supportIcon from "../assets/icons/support.svg";
 
 export type InclusionCategory = {
   title: string;
-  icon: LucideIcon;
+  icon: string; // image URL
   summary: string;
   items: string[];
 };
@@ -13,7 +18,7 @@ export type InclusionCategory = {
 export const SERVICE_INCLUSIONS: InclusionCategory[] = [
   {
     title: "Payroll & Tax Administration",
-    icon: Banknote,
+    icon: payrollIcon,
     summary: "Accurate, on-time pay and tax filings.",
     items: [
       "Full-service payroll processing",
@@ -24,7 +29,7 @@ export const SERVICE_INCLUSIONS: InclusionCategory[] = [
   },
   {
     title: "Benefits",
-    icon: HeartPulse,
+    icon: benefitsIcon,
     summary: "Big-company benefits for a small-business team.",
     items: [
       "Access to large-group medical, dental and vision plans",
@@ -35,7 +40,7 @@ export const SERVICE_INCLUSIONS: InclusionCategory[] = [
   },
   {
     title: "HR Expertise",
-    icon: Users,
+    icon: hrIcon,
     summary: "HR professionals on call for everyday questions.",
     items: [
       "Access to HR experts",
@@ -46,7 +51,7 @@ export const SERVICE_INCLUSIONS: InclusionCategory[] = [
   },
   {
     title: "Risk Mitigation & Compliance",
-    icon: ShieldCheck,
+    icon: riskIcon,
     summary: "Help staying on the right side of employment law.",
     items: [
       "Federal and state employment law guidance",
@@ -57,7 +62,7 @@ export const SERVICE_INCLUSIONS: InclusionCategory[] = [
   },
   {
     title: "Technology",
-    icon: MonitorSmartphone,
+    icon: technologyIcon,
     summary: "One platform for the whole team.",
     items: [
       "Online HR platform and mobile app",
@@ -68,7 +73,7 @@ export const SERVICE_INCLUSIONS: InclusionCategory[] = [
   },
   {
     title: "Service & Support",
-    icon: Headset,
+    icon: supportIcon,
     summary: "A team that knows your business.",
     items: [
       "Dedicated service team",

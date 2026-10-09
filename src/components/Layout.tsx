@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import TriNetLogo from "../assets/trinet_white_rgb_md.png";
+import TriNetLogo from "../assets/trinet_logo_reversed.png";
 import { useQuote } from "../state/QuoteContext";
 
 export const NAV_ITEMS = [
@@ -16,27 +16,26 @@ export const NAV_ITEMS = [
 export default function Layout() {
   const { quote } = useQuote();
   return (
-    <div
-      className="min-h-screen"
-      style={{ fontFamily: "'Avenir Next','Avenir',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif" }}
-    >
-      <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-          <img src={TriNetLogo} alt="TriNet Logo" className="h-8 w-auto" />
-          <h1 className="flex-1 text-2xl font-bold text-white">TriNet Quoting Tool</h1>
+    <div className="min-h-screen bg-canvas font-brand text-navy">
+      <header className="sticky top-0 z-20 bg-navy">
+        <div className="max-w-7xl mx-auto px-4 pt-4 pb-2 flex items-center gap-4">
+          {/* On TriNet Navy, use the reversed-out logo. */}
+          <img src={TriNetLogo} alt="TriNet" className="h-7 w-auto" />
+          <span className="h-6 w-px bg-white/30" aria-hidden />
+          <h1 className="flex-1 text-lg font-semibold text-white">Quoting Tool</h1>
           {quote.companyLogo && (
             <img src={quote.companyLogo} alt="Client logo" className="h-10 max-w-[160px] object-contain rounded bg-white p-1" />
           )}
         </div>
-        <nav className="max-w-7xl mx-auto px-4 pb-2 flex gap-1 overflow-x-auto">
+        <nav className="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === "/"}
               className={({ isActive }) =>
-                `whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  isActive ? "bg-[#FD5000] text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                `whitespace-nowrap border-b-[3px] px-3 py-2.5 text-sm font-semibold transition-colors ${
+                  isActive ? "border-orange text-white" : "border-transparent text-white/75 hover:text-white"
                 }`
               }
             >
