@@ -5,14 +5,14 @@ import { ArrowLeft, Printer } from "lucide-react";
 import TriNetLogo from "../assets/trinet_white_rgb_md.png";
 import { useQuote } from "../state/QuoteContext";
 import { SERVICE_INCLUSIONS } from "../data/serviceInclusions";
-import { feeSummary, formatDate, priceBreakRows, rateCapSchedule, setupFeeSchedule, usd } from "../lib/pricing";
+import { feeSummary, formatDate, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../lib/pricing";
 
 // Print-ready, letter-size executive summary. Rendered without the app header.
 export default function ExecutiveSummary() {
   const { quote } = useQuote();
   const fees = feeSummary(quote);
   const breaks = priceBreakRows(quote);
-  const cap = rateCapSchedule(quote);
+  const cap = rateCapLimits(quote);
   const setup = setupFeeSchedule(quote);
   const company = quote.companyName || "Your Company";
 
@@ -78,13 +78,13 @@ export default function ExecutiveSummary() {
             )}
           </section>
 
-          {(breaks.length > 0 || cap.length > 0) && (
+          {(breaks.length > 0 || cap) && (
             <section className="grid grid-cols-2 gap-6">
               {breaks.length > 0 && (
                 <div>
                   <H>Price breaks as you grow</H>
                   <table className="w-full">
-                    <thead><tr className="text-left text-slate-500 border-b"><th className="py-1 font-medium">Headcount</th><th className="py-1 font-medium">PEPM</th><th className="py-1 font-medium">Monthly</th></tr></thead>
+                    <thead><tr className="text-left text-slate-500 border-b"><th className="py-1 font-medium">Headcount</th><th className="py-1 font-medium">FT PEPM</th><th className="py-1 font-medium">Monthly (FT)</th></tr></thead>
                     <tbody>
                       {breaks.map((b) => (
                         <tr key={b.id} className="border-b border-slate-100">
@@ -95,16 +95,17 @@ export default function ExecutiveSummary() {
                   </table>
                 </div>
               )}
-              {cap.length > 0 && (
+              {cap && (
                 <div>
                   <H>Rate protection</H>
                   <p className="mb-1">
-                    {quote.rateCap.percent > 0
-                      ? `PEPM increases are capped at ${quote.rateCap.percent}% a year for ${cap.length} years.`
-                      : `PEPM is locked for ${cap.length} years.`}
+                    {cap.percent > 0
+                      ? `At the year 2 renewal, the PEPM won't increase more than ${cap.percent}%.`
+                      : "The PEPM won't increase at the year 2 renewal."}
                   </p>
                   <p className="text-slate-500">
-                    {cap.map((y) => `Year ${y.year}: ${usd(y.maxPepm)}`).join(" · ")}
+                    Year 2 maximum: {usd(cap.ftMax)}{fees.hasPt ? ` full-time · ${usd(cap.ptMax)} part-time` : " PEPM"}.
+                    A not-to-exceed cap, not a planned increase.
                   </p>
                 </div>
               )}

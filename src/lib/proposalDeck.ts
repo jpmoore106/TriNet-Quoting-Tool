@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import TriNetLogoUrl from "../assets/trinet_white_rgb_md.png";
 import type { QuoteInputs } from "../state/QuoteContext";
 import { SERVICE_INCLUSIONS } from "../data/serviceInclusions";
-import { feeSummary, formatDate, priceBreakRows, rateCapSchedule, setupFeeSchedule, usd } from "./pricing";
+import { feeSummary, formatDate, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "./pricing";
 
 const NAVY = "0B0134";
 const ORANGE = "FD5000";
@@ -58,7 +58,7 @@ export async function buildProposalDeck(q: QuoteInputs): Promise<PptxGenJS> {
   const company = q.companyName || "Your Company";
   const fees = feeSummary(q);
   const breaks = priceBreakRows(q);
-  const cap = rateCapSchedule(q);
+  const cap = rateCapLimits(q);
   const setup = setupFeeSchedule(q);
   const trinetLogo = await loadImage(TriNetLogoUrl);
   const clientLogo = q.companyLogo ? await loadImage(q.companyLogo).catch(() => null) : null;
@@ -155,9 +155,9 @@ export async function buildProposalDeck(q: QuoteInputs): Promise<PptxGenJS> {
   // 5. Growth pricing
   if (breaks.length) {
     const g = content("Price breaks as you grow");
-    g.addText("Your PEPM drops as your team reaches each headcount.", { x: 0.5, y: 1.2, w: W - 1, h: 0.5, fontFace: FONT, fontSize: 16, color: SLATE });
-    const rows = [[hdr("Headcount"), hdr("PEPM"), hdr("Monthly"), hdr("Annual"), hdr("Savings per employee")]];
-    if (fees.totalWse > 0) rows.push([cell(`${fees.totalWse} (today)`), cell(usd(fees.pepm)), cell(usd(fees.monthly, 0)), cell(usd(fees.annual, 0)), cell("—")]);
+    g.addText(`Your full-time PEPM drops as your team reaches each headcount.${fees.hasPt ? " Part-time pricing stays the same." : ""}`, { x: 0.5, y: 1.2, w: W - 1, h: 0.5, fontFace: FONT, fontSize: 16, color: SLATE });
+    const rows = [[hdr("Headcount"), hdr("FT PEPM"), hdr("Monthly (FT)"), hdr("Annual (FT)"), hdr("Savings per employee")]];
+    if (fees.ft > 0) rows.push([cell(`${fees.ft} (today)`), cell(usd(q.ftPepm || 0)), cell(usd(fees.ftMonthly, 0)), cell(usd(fees.ftMonthly * 12, 0)), cell("—")]);
     breaks.forEach((b) => rows.push([
       cell(`${b.headcount}+`, true), cell(usd(b.pepm), true), cell(usd(b.monthly, 0)), cell(usd(b.annual, 0)),
       cell(b.savingsPerEmployee > 0 ? `${usd(b.savingsPerEmployee)} (${b.savingsPercent.toFixed(1)}%)` : "—"),
@@ -166,18 +166,20 @@ export async function buildProposalDeck(q: QuoteInputs): Promise<PptxGenJS> {
   }
 
   // 6. Rate protection
-  if (cap.length) {
+  if (cap) {
     const r = content("Rate protection");
     r.addText(
-      q.rateCap.percent > 0
-        ? `Your PEPM can't rise more than ${q.rateCap.percent}% a year for ${cap.length} years.`
-        : `Your PEPM is locked for ${cap.length} years.`,
+      cap.percent > 0
+        ? `At your year 2 renewal, your PEPM won't increase more than ${cap.percent}%.`
+        : "Your PEPM won't increase at your year 2 renewal.",
       { x: 0.5, y: 1.3, w: W - 1, h: 0.7, fontFace: FONT, fontSize: 24, bold: true, color: NAVY },
     );
-    r.addTable(
-      [[hdr("Year"), hdr("Maximum PEPM")], ...cap.map((y) => [cell(y.year === 1 ? "Year 1 (today)" : `Year ${y.year}`), cell(usd(y.maxPepm), true)])],
-      { x: 0.5, y: 2.3, w: 6, colW: [3, 3], fontFace: FONT, border: { type: "solid", pt: 0.5, color: "E2E8F0" } },
-    );
+    const capRows = [[hdr(""), hdr("Today"), hdr("Year 2 maximum")],
+      [cell(fees.hasPt ? "Full-time PEPM" : "PEPM"), cell(usd(q.ftPepm || 0)), cell(usd(cap.ftMax), true)]];
+    if (fees.hasPt) capRows.push([cell("Part-time PEPM"), cell(usd(q.ptPepm || 0)), cell(usd(cap.ptMax), true)]);
+    r.addTable(capRows, { x: 0.5, y: 2.3, w: 8, colW: [3, 2.5, 2.5], fontFace: FONT, border: { type: "solid", pt: 0.5, color: "E2E8F0" } });
+    r.addText("A not-to-exceed cap, not a planned increase. Applies to the year 2 renewal only.",
+      { x: 0.5, y: 2.4 + 0.45 * capRows.length, w: W - 1, h: 0.4, fontFace: FONT, fontSize: 12, italic: true, color: SLATE });
   }
 
   // 7. Setup fee

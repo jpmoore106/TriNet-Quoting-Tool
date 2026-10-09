@@ -5,13 +5,13 @@ import { Card, CardContent } from "../components/ui/card";
 import PageTitle from "../components/PageTitle";
 import { useQuote } from "../state/QuoteContext";
 import { SERVICE_INCLUSIONS } from "../data/serviceInclusions";
-import { feeSummary, priceBreakRows, rateCapSchedule, setupFeeSchedule, usd } from "../lib/pricing";
+import { feeSummary, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../lib/pricing";
 
 export default function ProfessionalServiceFees() {
   const { quote } = useQuote();
   const fees = feeSummary(quote);
   const breaks = priceBreakRows(quote);
-  const cap = rateCapSchedule(quote);
+  const cap = rateCapLimits(quote);
   const setup = setupFeeSchedule(quote);
 
   return (
@@ -67,29 +67,29 @@ export default function ProfessionalServiceFees() {
         </div>
       </section>
 
-      {(breaks.length > 0 || cap.length > 0) && (
+      {(breaks.length > 0 || cap) && (
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
           {breaks.length > 0 && (
-            <FeatureCard icon={TrendingDown} title="Price breaks as you grow" className={cap.length ? "lg:col-span-2" : "lg:col-span-3"}
-              subtitle="Your PEPM drops as your team reaches each headcount.">
+            <FeatureCard icon={TrendingDown} title="Price breaks as you grow" className={cap ? "lg:col-span-2" : "lg:col-span-3"}
+              subtitle={`Your full-time PEPM drops as your team reaches each headcount.${fees.hasPt ? " Part-time pricing stays the same." : ""}`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" data-testid="price-breaks">
                   <thead>
                     <tr className="text-left text-slate-500 border-b border-slate-200">
                       <th className="py-2 pr-4 font-medium">Headcount</th>
-                      <th className="py-2 pr-4 font-medium">PEPM</th>
-                      <th className="py-2 pr-4 font-medium">Monthly</th>
-                      <th className="py-2 pr-4 font-medium">Annual</th>
+                      <th className="py-2 pr-4 font-medium">FT PEPM</th>
+                      <th className="py-2 pr-4 font-medium">Monthly (FT)</th>
+                      <th className="py-2 pr-4 font-medium">Annual (FT)</th>
                       <th className="py-2 font-medium">vs. today</th>
                     </tr>
                   </thead>
                   <tbody className="text-[#0B0134]">
-                    {fees.totalWse > 0 && (
+                    {fees.ft > 0 && (
                       <tr className="border-b border-slate-100 text-slate-500">
-                        <td className="py-2 pr-4">{fees.totalWse} (today)</td>
-                        <td className="py-2 pr-4">{usd(fees.pepm)}</td>
-                        <td className="py-2 pr-4">{usd(fees.monthly, 0)}</td>
-                        <td className="py-2 pr-4">{usd(fees.annual, 0)}</td>
+                        <td className="py-2 pr-4">{fees.ft} (today)</td>
+                        <td className="py-2 pr-4">{usd(quote.ftPepm || 0)}</td>
+                        <td className="py-2 pr-4">{usd(fees.ftMonthly, 0)}</td>
+                        <td className="py-2 pr-4">{usd(fees.ftMonthly * 12, 0)}</td>
                         <td className="py-2">—</td>
                       </tr>
                     )}
@@ -113,19 +113,18 @@ export default function ProfessionalServiceFees() {
               </div>
             </FeatureCard>
           )}
-          {cap.length > 0 && (
+          {cap && (
             <FeatureCard icon={ShieldCheck} title="Rate protection" className={breaks.length ? "" : "lg:col-span-3"}
-              subtitle={quote.rateCap.percent > 0
-                ? `Your PEPM can't rise more than ${quote.rateCap.percent}% a year for ${cap.length} years.`
-                : `Your PEPM is locked for ${cap.length} years.`}>
+              subtitle={cap.percent > 0
+                ? `At your year 2 renewal, your PEPM won't increase more than ${cap.percent}%.`
+                : "Your PEPM won't increase at your year 2 renewal."}>
               <ul className="space-y-2 text-sm" data-testid="rate-cap">
-                {cap.map((y) => (
-                  <li key={y.year} className="flex justify-between border-b border-slate-100 last:border-0 pb-2">
-                    <span className="text-slate-500">Year {y.year}{y.year === 1 ? " (today)" : " max"}</span>
-                    <span className="font-semibold text-[#0B0134]">{usd(y.maxPepm)}</span>
-                  </li>
-                ))}
+                <CapRow label={fees.hasPt ? "Full-time PEPM" : "PEPM"} today={quote.ftPepm || 0} max={cap.ftMax} />
+                {fees.hasPt && <CapRow label="Part-time PEPM" today={quote.ptPepm || 0} max={cap.ptMax} />}
               </ul>
+              <p className="mt-3 text-xs text-slate-500">
+                This is a not-to-exceed cap, not a planned increase. It applies to the year 2 renewal only.
+              </p>
             </FeatureCard>
           )}
         </div>
@@ -211,6 +210,18 @@ function FeatureCard({ icon: Icon, title, subtitle, children, className = "" }: 
         {children}
       </CardContent>
     </Card>
+  );
+}
+
+function CapRow({ label, today, max }: { label: string; today: number; max: number }) {
+  return (
+    <li className="border-b border-slate-100 last:border-0 pb-2">
+      <p className="text-slate-500">{label}</p>
+      <p className="flex justify-between">
+        <span className="text-[#0B0134]">Today {usd(today)}</span>
+        <span className="font-semibold text-[#0B0134]">Year 2 max {usd(max)}</span>
+      </p>
+    </li>
   );
 }
 
