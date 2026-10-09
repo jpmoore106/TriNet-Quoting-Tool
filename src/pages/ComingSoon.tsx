@@ -14,8 +14,8 @@ export default function ComingSoon({ title, description }: { title: string; desc
           <p className="font-semibold">This page is under construction.</p>
           <p className="text-sm text-slate-600 mt-1">
             {totalWse > 0
-              ? `It will use the quote details from the Home page (${totalWse} total WSE).`
-              : <>Enter the quote details on the <Link to="/" className="underline text-[#FD5000]">Home page</Link> first.</>}
+              ? `It will use the quote details from the Setup page (${totalWse} total WSE).`
+              : <>Enter the quote details on the <Link to="/" className="underline text-[#FD5000]">Setup page</Link> first.</>}
           </p>
         </CardContent>
       </Card>
