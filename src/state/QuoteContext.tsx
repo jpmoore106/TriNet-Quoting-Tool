@@ -7,6 +7,8 @@ export type QuoteInputs = {
   incumbentPayroll: string;
   incumbentMedicalCarrier: string;
   medicalRenewalDate: string; // yyyy-MM-dd
+  ftPepm: number; // Professional Service Fee per FT employee per month
+  ptPepm: number; // Professional Service Fee per PT employee per month
 };
 
 const EMPTY: QuoteInputs = {
@@ -16,6 +18,8 @@ const EMPTY: QuoteInputs = {
   incumbentPayroll: "",
   incumbentMedicalCarrier: "",
   medicalRenewalDate: "",
+  ftPepm: 0,
+  ptPepm: 0,
 };
 
 const STORAGE_KEY = "trinet-quote-inputs";
