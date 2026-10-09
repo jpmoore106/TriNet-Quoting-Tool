@@ -2,7 +2,7 @@ import * as React from "react";
 type DivProps = React.HTMLAttributes<HTMLDivElement>;
 
 export function Card({ className = "", ...props }: DivProps) {
-  return <div className={`rounded-2xl border bg-white ${className}`} {...props} />;
+  return <div className={`rounded-2xl border border-tngray-light bg-white shadow-sm ${className}`} {...props} />;
 }
 
 export function CardContent({ className = "", ...props }: DivProps) {

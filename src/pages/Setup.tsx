@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Trash2 } from "lucide-react";
 import PageTitle from "../components/PageTitle";
-import { Section, TextField, NumberField, MoneyField, labelClass, inputClass } from "../components/form";
+import { Section, TextField, NumberField, MoneyField, labelClass, inputClass, primaryButton, secondaryButton } from "../components/form";
 import { useQuote, type PriceBreak } from "../state/QuoteContext";
 import { feeSummary, recommendedSetupFee, setupFeeSchedule, usd } from "../lib/pricing";
 
@@ -48,7 +48,7 @@ export default function Setup() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      <PageTitle title="Setup" subtitle="Enter the prospect's details and pricing. Everything is saved in this browser and used on every page and output." />
+      <PageTitle eyebrow="Quote" title="Setup" subtitle="Enter the prospect's details and pricing. Everything is saved in this browser and used on every page and output." />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Section title="Company">
@@ -61,13 +61,13 @@ export default function Setup() {
           <div>
             <label htmlFor="logo" className={labelClass}>Company logo</label>
             <input id="logo" type="file" accept="image/*"
-              className="w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-slate-100 hover:file:bg-slate-800"
+              className="w-full text-sm text-tngray-dark file:mr-3 file:rounded-lg file:border-0 file:bg-navy file:px-3 file:py-2 file:font-semibold file:text-white hover:file:bg-navy/90"
               onChange={(e) => { onLogoSelected(e.target.files?.[0]); e.target.value = ""; }} />
             {logoError && <p className="mt-1 text-sm text-red-600">{logoError}</p>}
           </div>
           {quote.companyLogo && (
             <div className="flex items-center gap-4">
-              <img src={quote.companyLogo} alt="Client logo" className="h-14 max-w-[220px] object-contain rounded border border-slate-200 p-2" />
+              <img src={quote.companyLogo} alt="Client logo" className="h-14 max-w-[220px] object-contain rounded border border-tngray-light p-2" />
               <button type="button" className="text-sm text-red-600 underline" onClick={() => update({ companyLogo: null })}>Remove logo</button>
             </div>
           )}
@@ -79,7 +79,7 @@ export default function Setup() {
             <NumberField id="pt-wse" label="PT WSE count" value={quote.ptWse} onChange={(v) => update({ ptWse: Math.round(v) })} />
             <div>
               <span className={labelClass}>Total WSE</span>
-              <div className="rounded-lg px-3 py-2 bg-slate-100 text-[#0B0134] font-semibold">{fees.totalWse}</div>
+              <div className="rounded-lg px-3 py-2 bg-canvas text-navy font-semibold">{fees.totalWse}</div>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -102,7 +102,7 @@ export default function Setup() {
               <MoneyField id="pt-pepm" label={`Part-time PEPM (${fees.pt} PT)`}
                 value={quote.ptPepm} onChange={(v) => update({ ptPepm: v })} />
             ) : (
-              <p className="text-xs text-slate-500 sm:pt-7">Enter PT WSE to add a part-time rate and a blended PEPM.</p>
+              <p className="text-xs text-tngray-dark sm:pt-7">Enter PT WSE to add a part-time rate and a blended PEPM.</p>
             )}
           </div>
           <SummaryLine label={fees.hasPt ? "Blended PEPM" : "PEPM"} value={usd(fees.pepm)}
@@ -110,7 +110,7 @@ export default function Setup() {
         </Section>
 
         <Section title="Rate cap" description="Not-to-exceed limit on the PEPM increase at the year 2 renewal. It's a ceiling, not a planned increase.">
-          <label className="flex items-center gap-2 text-sm font-medium text-[#0B0134]">
+          <label className="flex items-center gap-2 text-sm font-medium text-navy">
             <input id="rate-cap-enabled" type="checkbox" checked={quote.rateCap.enabled}
               onChange={(e) => setRateCap({ enabled: e.target.checked })} />
             Include a rate cap
@@ -122,7 +122,7 @@ export default function Setup() {
               {fees.pepm > 0 && (
                 <div>
                   <span className={labelClass}>Year 2 PEPM won't exceed</span>
-                  <div data-testid="setup-cap-max" className="rounded-lg px-3 py-2 bg-slate-100 text-[#0B0134] font-semibold">
+                  <div data-testid="setup-cap-max" className="rounded-lg px-3 py-2 bg-canvas text-navy font-semibold">
                     {usd((quote.ftPepm || 0) * (1 + (quote.rateCap.percent || 0) / 100))}{fees.hasPt ? " FT" : ""}
                   </div>
                 </div>
@@ -130,14 +130,14 @@ export default function Setup() {
             </div>
           )}
           {quote.rateCap.enabled && quote.rateCap.percent === 0 && (
-            <p className="text-xs text-slate-500">0% means no increase at the year 2 renewal.</p>
+            <p className="text-xs text-tngray-dark">0% means no increase at the year 2 renewal.</p>
           )}
         </Section>
 
         <Section title="Price breaks" description="Full-time PEPM at future headcounts as the company grows. Part-time pricing doesn't change." className="lg:col-span-2">
           {quote.priceBreaks.length > 0 && (
             <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_1fr_auto] gap-3 text-sm font-medium text-[#0B0134]">
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-3 text-sm font-medium text-navy">
                 <span>Headcount</span><span>Full-time PEPM at that headcount</span><span className="w-9" />
               </div>
               {quote.priceBreaks.map((b, i) => (
@@ -146,13 +146,13 @@ export default function Setup() {
                     className={inputClass} value={b.headcount || ""}
                     onChange={(e) => setBreak(b.id, { headcount: Math.max(0, Math.round(parseFloat(e.target.value) || 0)) })} />
                   <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-tngray-dark">$</span>
                     <input aria-label={`Price break ${i + 1} PEPM`} type="number" min={0} step="0.01" placeholder="0.00"
                       className={`${inputClass} pl-7`} value={b.pepm || ""}
                       onChange={(e) => setBreak(b.id, { pepm: Math.max(0, parseFloat(e.target.value) || 0) })} />
                   </div>
                   <button type="button" aria-label={`Remove price break ${i + 1}`} onClick={() => removeBreak(b.id)}
-                    className="h-9 w-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600">
+                    className="h-9 w-9 flex items-center justify-center rounded-lg text-tngray-dark hover:bg-red-50 hover:text-red-600">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -160,11 +160,11 @@ export default function Setup() {
             </div>
           )}
           <button type="button" onClick={addBreak}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[#FD5000] px-3 py-1.5 text-sm font-medium text-[#FD5000] hover:bg-[#FD5000]/10">
+            className={secondaryButton}>
             <Plus className="h-4 w-4" /> Add price break
           </button>
-          <p className="text-xs text-slate-500">
-            Costs and savings are shown on the <Link to="/professional-service-fees" className="underline text-[#FD5000]">Professional Service Fees</Link> page.
+          <p className="text-xs text-tngray-dark">
+            Costs and savings are shown on the <Link to="/professional-service-fees" className="underline text-orange-dark">Professional Service Fees</Link> page.
           </p>
         </Section>
 
@@ -178,16 +178,16 @@ export default function Setup() {
               value={quote.setupFee.firstInvoiceDate} onChange={(v) => setSetupFee({ firstInvoiceDate: v })} />
           </div>
           {recommended && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-[#FD5000] px-4 py-3">
-              <p className="text-sm text-[#0B0134]">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-orange px-4 py-3">
+              <p className="text-sm text-navy">
                 Recommended setup fee: <span data-testid="setup-recommended" className="font-bold">{usd(recommended.amount)}</span>
-                <span className="block text-xs text-slate-600">
+                <span className="block text-xs text-tngray-dark">
                   {recommended.percent}% of the {usd(recommended.monthly)} monthly fee ({recommended.label})
                 </span>
               </p>
               {quote.setupFee.amount !== recommended.amount && (
                 <button type="button" onClick={() => setSetupFee({ amount: recommended.amount })}
-                  className="rounded-lg bg-[#FD5000] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90">
+                  className={primaryButton}>
                   Use recommended
                 </button>
               )}
@@ -203,11 +203,11 @@ export default function Setup() {
       </div>
 
       <div className="mt-6 flex items-center justify-between">
-        <button type="button" className="text-sm text-white/90 underline hover:text-white"
+        <button type="button" className="text-sm text-tngray-dark underline hover:text-navy"
           onClick={() => { if (window.confirm("Clear all quote details?")) reset(); }}>
           Clear all quote details
         </button>
-        <Link to="/outputs" className="rounded-lg bg-[#0B0134] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a1050]">
+        <Link to="/outputs" className={primaryButton}>
           Go to outputs →
         </Link>
       </div>
@@ -217,11 +217,11 @@ export default function Setup() {
 
 function SummaryLine({ label, value, extra }: { label: string; value: string; extra?: string }) {
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg bg-[#FD5000]/10 px-4 py-3">
-      <span className="text-sm font-medium text-[#0B0134]">{label}</span>
+    <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg bg-orange/10 px-4 py-3">
+      <span className="text-sm font-medium text-navy">{label}</span>
       <span className="text-right">
-        <span data-testid={`summary-${label.toLowerCase().replace(/\s+/g, "-")}`} className="text-lg font-bold text-[#0B0134]">{value}</span>
-        {extra && <span className="block text-xs text-slate-600">{extra}</span>}
+        <span data-testid={`summary-${label.toLowerCase().replace(/\s+/g, "-")}`} className="text-lg font-bold text-navy">{value}</span>
+        {extra && <span className="block text-xs text-tngray-dark">{extra}</span>}
       </span>
     </div>
   );

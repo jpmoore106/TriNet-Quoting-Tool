@@ -14,6 +14,7 @@ import {
 } from "date-fns";
 import { Card, CardContent } from "../components/ui/card";
 import PageTitle from "../components/PageTitle";
+import { inputClass } from "../components/form";
 import { useQuote } from "../state/QuoteContext";
 import { motion } from "framer-motion";
 
@@ -457,20 +458,20 @@ export default function PaperworkDeadlines() {
   
   return (
     <div
-      className="text-[var(--text)]"
+      className="text-navy"
       style={brandVars}
     >
 
       <div className="max-w-7xl mx-auto px-4 py-6" style={brandVars}>
-        <PageTitle title="Paperwork Deadlines" subtitle="Interactive payroll calendar with business-day paperwork deadlines." />
+        <PageTitle eyebrow="Timeline" title="Paperwork Deadlines" subtitle="Interactive payroll calendar with business-day paperwork deadlines." />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-1 shadow-sm bg-[var(--panel)] border-slate-800">
+          <Card className="lg:col-span-1 ">
             <CardContent className="p-4 sm:p-6">
-              <h2 className="text-lg font-semibold mb-4 text-white">Inputs</h2>
+              <h2 className="text-lg font-bold mb-4 text-navy">Inputs</h2>
               <div className="space-y-4">
                 <div>
-                <label className="block text-sm font-medium mb-1 text-[var(--brand-primary)]">Payroll frequency</label>
-                  <select className="w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2 text-slate-100" value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+                <label className="block text-sm font-medium mb-1 text-navy">Payroll frequency</label>
+                  <select className={inputClass} value={frequency} onChange={(e) => setFrequency(e.target.value)}>
                     <option>weekly</option>
                     <option>bi-weekly</option>
                     <option>semi monthly</option>
@@ -480,41 +481,41 @@ export default function PaperworkDeadlines() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                  <label className="block text-sm font-medium mb-1 text-[var(--brand-primary)]">Pay period begin date</label>
-                    <input type="date" className="dark-date w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2 text-slate-100" value={payBegin} onChange={(e) => setPayBegin(e.target.value)} />
+                  <label className="block text-sm font-medium mb-1 text-navy">Pay period begin date</label>
+                    <input type="date" className={inputClass} value={payBegin} onChange={(e) => setPayBegin(e.target.value)} />
                   </div>
                   <div>
-                  <label className="block text-sm font-medium mb-1 text-[var(--brand-primary)]">Pay period end date</label>
-                    <input type="date" className="dark-date w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2 text-slate-100" value={payEnd} onChange={(e) => setPayEnd(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                  <label className="block text-sm font-medium mb-1 text-[var(--brand-primary)]">First check date</label>
-                    <input type="date" className="dark-date w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2 text-slate-100" value={firstCheck} onChange={(e) => setFirstCheck(e.target.value)} />
-                  </div>
-                  <div>
-                  <label className="block text-sm font-medium mb-1 text-[var(--brand-primary)]">Benefits start date</label>
-                    <input type="date" className="dark-date w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2 text-slate-100" value={benefitsStart} onChange={(e) => setBenefitsStart(e.target.value)} />
+                  <label className="block text-sm font-medium mb-1 text-navy">Pay period end date</label>
+                    <input type="date" className={inputClass} value={payEnd} onChange={(e) => setPayEnd(e.target.value)} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                  <label className="block text-sm font-medium mb-1 text-[var(--brand-primary)]">Employee count</label>
+                  <label className="block text-sm font-medium mb-1 text-navy">First check date</label>
+                    <input type="date" className={inputClass} value={firstCheck} onChange={(e) => setFirstCheck(e.target.value)} />
+                  </div>
+                  <div>
+                  <label className="block text-sm font-medium mb-1 text-navy">Benefits start date</label>
+                    <input type="date" className={inputClass} value={benefitsStart} onChange={(e) => setBenefitsStart(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                  <label className="block text-sm font-medium mb-1 text-navy">Employee count</label>
                     <input
                       type="number"
                       min={1}
-                      className="w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2 text-slate-100"
+                      className={inputClass}
                       value={employeeCount}
                       onChange={(e) => setEmployeeCount(parseInt(e.target.value || "0"))}
                     />
                   </div>
                   <div>
-                  <label className="block text-sm font-medium mb-1 text-[var(--brand-primary)]">Service model</label>
+                  <label className="block text-sm font-medium mb-1 text-navy">Service model</label>
                     <select
-                      className="w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2 text-slate-100"
+                      className={inputClass}
                       value={serviceModel}
                       onChange={(e) => setServiceModel(e.target.value as ServiceModel)}
                     >
@@ -527,16 +528,16 @@ export default function PaperworkDeadlines() {
                 </div>
 
                 {isOms ? (
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-tngray-dark">
                     {serviceModel === "OMS Small Group"
                       ? "Early Access is required for OMS. The calendar shows the paperwork deadline for the earliest Early Access date and the last paperwork deadline for the last Early Access date."
                       : "Early Access is required for OMS Large Group: 30 days before the benefit start date, with paperwork due 11 business days before it."}
                   </p>
                 ) : (
                 <div>
-                <label className="block text-sm font-medium mb-1 text-[var(--brand-primary)]">Early Access</label>
+                <label className="block text-sm font-medium mb-1 text-navy">Early Access</label>
                   <select
-                    className="w-full border border-slate-700 bg-slate-900 rounded-lg px-3 py-2 text-slate-100"
+                    className={inputClass}
                     value={earlyAccess}
                     onChange={(e) => setEarlyAccess(e.target.value as EarlyAccessOption)}
                   >
@@ -549,7 +550,7 @@ export default function PaperworkDeadlines() {
                 </div>
                 )}
 
-                <label className="flex items-start gap-2 text-sm font-medium text-[var(--brand-primary)]">
+                <label className="flex items-start gap-2 text-sm font-medium text-navy">
                   <input
                     type="checkbox"
                     className="mt-1"
@@ -558,7 +559,7 @@ export default function PaperworkDeadlines() {
                   />
                   <span>
                     TLM Enterprise "Day 1"
-                    <span className="block text-xs font-normal text-slate-600">
+                    <span className="block text-xs font-normal text-tngray-dark">
                       Paperwork (including TLM agreement and questionnaire) due 35 business days before the live date
                       {tlmEnterprise && ` (${format(subtractBusinessDays(clampToMidnight(toDate(payBegin)), 35), "MMM d, yyyy")})`}.
                     </span>
@@ -568,11 +569,11 @@ export default function PaperworkDeadlines() {
                 {validationErrors.length > 0 && (
   <div
     role="alert"
-    className="rounded-lg border border-red-600 bg-red-600/10 p-3 text-sm text-red-500"
+    className="rounded-lg border border-alert bg-alert/5 p-3 text-sm text-alert"
   >
     <ul className="list-disc pl-5 space-y-1">
       {validationErrors.map((e, i) => (
-        <li key={i} className="font-bold text-red-500">
+        <li key={i} className="font-bold text-alert">
           {e}
         </li>
       ))}
@@ -582,7 +583,7 @@ export default function PaperworkDeadlines() {
 
 
 {warningMessages.length > 0 && (
-  <div className="rounded-lg border border-red-600 bg-red-600/10 p-3 text-sm text-red-500">
+  <div className="rounded-lg border border-alert bg-alert/5 p-3 text-sm text-alert">
     {warningMessages.map((w, i) => (
       <div key={i}>• {w}</div>
     ))}
@@ -590,7 +591,7 @@ export default function PaperworkDeadlines() {
 )}
 
 <div className="mt-4 space-y-2">
-  <h3 className="text-sm font-semibold text-[var(--brand-primary)]">
+  <h3 className="text-sm font-semibold text-navy">
     Reference Documents
   </h3>
   <ul className="text-sm list-disc pl-5 space-y-1">
@@ -599,7 +600,7 @@ export default function PaperworkDeadlines() {
         href="https://trinet.highspot.com/items/6ab17296d95770a0fc71a617?lfrm=srp.0#1"
         target="_blank"
         rel="noreferrer"
-        className="underline hover:opacity-80 text-[var(--brand-secondary)]"
+        className="underline hover:opacity-80 text-orange-dark"
       >
         2027 Core Paperwork Deadlines
       </a>
@@ -609,7 +610,7 @@ export default function PaperworkDeadlines() {
         href="https://trinet.highspot.com/items/6ab300a1c05e9616fdd17e12?lfrm=srp.2"
         target="_blank"
         rel="noreferrer"
-        className="underline hover:opacity-80 text-[var(--brand-secondary)]"
+        className="underline hover:opacity-80 text-orange-dark"
       >
         2027 Preferred Paperwork Deadlines
       </a>
@@ -619,7 +620,7 @@ export default function PaperworkDeadlines() {
         href="https://trinet.highspot.com/items/6ab17295d95770a0fc71a60d?lfrm=srp.1#1"
         target="_blank"
         rel="noreferrer"
-        className="underline hover:opacity-80 text-[var(--brand-secondary)]"
+        className="underline hover:opacity-80 text-orange-dark"
       >
         2027 OMS Paperwork Deadlines
       </a>
@@ -629,7 +630,7 @@ export default function PaperworkDeadlines() {
         href="https://trinet.highspot.com/items/68d43bbdcff4951ae2d47f81?lfrm=srp.3"
         target="_blank"
         rel="noreferrer"
-        className="underline hover:opacity-80 text-[var(--brand-secondary)]"
+        className="underline hover:opacity-80 text-orange-dark"
       >
         2026 Core Paperwork Deadlines
       </a>
@@ -639,7 +640,7 @@ export default function PaperworkDeadlines() {
         href="https://trinet.highspot.com/items/68d43bbdcff4951ae2d47f8c?lfrm=srp.5"
         target="_blank"
         rel="noreferrer"
-        className="underline hover:opacity-80 text-[var(--brand-secondary)]"
+        className="underline hover:opacity-80 text-orange-dark"
       >
         2026 Preferred Paperwork Deadlines
       </a>
@@ -649,7 +650,7 @@ export default function PaperworkDeadlines() {
         href="https://trinet.highspot.com/items/68ba2c9d2a8dc5545cf12f90?lfrm=srp.4"
         target="_blank"
         rel="noreferrer"
-        className="underline hover:opacity-80 text-[var(--brand-secondary)]"
+        className="underline hover:opacity-80 text-orange-dark"
       >
         2026 OMS Paperwork Deadlines
       </a>
@@ -657,7 +658,7 @@ export default function PaperworkDeadlines() {
   </ul>
 </div>
 
-                <div className="text-xs text-slate-400">
+                <div className="text-xs text-tngray-dark">
                   <p>Business days exclude Saturdays and Sundays. TriNet and bank holidays (federal holidays plus the day after Thanksgiving) are also excluded, observed on the nearest weekday when they fall on weekends.</p>
                 </div>
               </div>
@@ -674,7 +675,7 @@ export default function PaperworkDeadlines() {
         </div>
 
         <div className="mt-8">
-          <h3 className="text-base font-semibold mb-3 text-white">Legend</h3>
+          <h3 className="text-base font-bold mb-3 text-navy">Legend</h3>
           <div className="flex flex-wrap gap-2">
             {["Pay Period Start", "Pay Period End", "Check Date", "Paperwork Deadline", "Benefits Start Date",
               ...(serviceModel === "OMS Small Group"
@@ -687,13 +688,13 @@ export default function PaperworkDeadlines() {
       </div>
 
       <style>{`
-        :root { --brand-primary:#0B0134; --brand-secondary:#FD5000; --bg:#0b0f1a; --panel:#0f172a; --text:#e5e7eb; }
-        .chip-primary { color:#c7c9ff; background:rgba(99,102,241,.12); border:1px solid rgba(99,102,241,.35); }
-        .chip-secondary { color:#ffd3c2; background:rgba(253,80,0,.12); border:1px solid rgba(253,80,0,.35); }
-        .chip-neutral { color:#e5e7eb; background:rgba(148,163,184,.12); border:1px solid rgba(148,163,184,.35); }
-        .chip-deadline { color:#fecaca; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.35); }
-        .chip-benefit { color:#bbf7d0; background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.35); }
-        .chip-early { color:#bfdbfe; background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.35); }
+        /* Calendar labels in TriNet brand colors (primary + secondary palette), AA contrast on white */
+        .chip-primary { color:#0B0134; background:rgba(11,1,52,.08); border:1px solid rgba(11,1,52,.25); }
+        .chip-secondary { color:#8F3011; background:rgba(253,80,0,.10); border:1px solid rgba(253,80,0,.40); }
+        .chip-neutral { color:#54565A; background:rgba(223,225,223,.6); border:1px solid #DFE1DF; }
+        .chip-deadline { color:#FFFFFF; background:#C0143C; border:1px solid #C0143C; font-weight:600; }
+        .chip-benefit { color:#00434A; background:rgba(0,67,74,.08); border:1px solid rgba(0,67,74,.30); }
+        .chip-early { color:#1C02D8; background:rgba(28,2,216,.06); border:1px solid rgba(28,2,216,.30); }
       `}</style>
     </div>
   );
@@ -719,10 +720,10 @@ function MonthCard({
   for (let r = 0; r < rows; r++) grid.push(cells.slice(r * 7, r * 7 + 7) as (Date | null)[]);
   const monthTitle = format(date, "MMMM yyyy");
   return (
-    <Card className="shadow-sm bg-[var(--panel)] border-slate-800">
+    <Card className="">
       <CardContent className="p-4 sm:p-6">
         <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold text-[var(--brand-primary)]">{monthTitle}</h3>
+        <h3 className="text-lg font-semibold text-navy">{monthTitle}</h3>
         </div>
         <div
         className="grid grid-cols-7 text-sm font-semibold mb-1"
@@ -734,10 +735,10 @@ function MonthCard({
         </div>
         <div className="grid grid-cols-7 gap-1">
           {grid.flat().map((d, idx) => (
-            <div key={idx} className="border border-slate-700 rounded-xl min-h-[72px] p-1 bg-slate-900">
+            <div key={idx} className="border border-tngray-light rounded-xl min-h-[72px] p-1 bg-white">
               {d ? (
                 <div>
-                  <div className="text-sm font-semibold mb-1 text-[var(--brand-secondary)]">{format(d, "d")}</div>
+                  <div className="text-sm font-semibold mb-1 text-navy">{format(d, "d")}</div>
                   <div className="space-y-1">
                     {labelMap[format(d, "yyyy-MM-dd")]?.map((label, i) => (
                       <span key={i} className={`block text-[10px] leading-tight px-1 py-0.5 rounded ${labelClass(label)}`} title={label}>
