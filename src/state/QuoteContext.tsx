@@ -108,20 +108,31 @@ export function QuoteProvider({ children, initial, save, readOnly = false, compa
   const saveRef = useRef(save);
   saveRef.current = save;
 
-  const flush = useCallback(async () => {
+  // Saves run one at a time, each sending the latest edits, so an older save can never land after a newer one.
+  const inFlight = useRef<Promise<void> | null>(null);
+  const flush = useCallback(async (): Promise<void> => {
+    if (inFlight.current) {
+      await inFlight.current;
+      return flush();
+    }
     const q = pending.current;
     if (!q || !saveRef.current) return;
     pending.current = null;
     setSaveState("saving");
-    try {
-      await saveRef.current(q);
-      lastSaved.current = q;
-      if (!pending.current) setSaveState("saved");
-    } catch (e) {
-      console.error(e);
-      pending.current = pending.current ?? q; // retry with the next edit
-      setSaveState("error");
-    }
+    const run = (async () => {
+      try {
+        await saveRef.current!(q);
+        lastSaved.current = q;
+        if (!pending.current) setSaveState("saved");
+      } catch (e) {
+        console.error(e);
+        pending.current = pending.current ?? q; // retry with the next edit
+        setSaveState("error");
+      }
+    })();
+    inFlight.current = run;
+    await run;
+    inFlight.current = null;
   }, []);
 
   useEffect(() => {
@@ -136,7 +147,7 @@ export function QuoteProvider({ children, initial, save, readOnly = false, compa
   useEffect(() => {
     const onHide = () => { if (pending.current) { clearTimeout(timer.current); void flush(); } };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!pending.current) return;
+      if (!pending.current && !inFlight.current) return;
       onHide();
       e.preventDefault();
       e.returnValue = "";
