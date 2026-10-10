@@ -261,3 +261,19 @@ begin
   end if;
   return new;
 end $$;
+
+-- ---------- Pricing configuration (confidential) ----------
+-- The rate card and promotions. TriNet users read it; values are loaded in the SQL editor, never committed here.
+
+create table if not exists public.pricing_config (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.pricing_config enable row level security;
+revoke all on public.pricing_config from anon, authenticated;
+grant select on public.pricing_config to authenticated;
+drop policy if exists "pricing config: TriNet users read" on public.pricing_config;
+create policy "pricing config: TriNet users read" on public.pricing_config for select to authenticated
+  using (public.is_rep());

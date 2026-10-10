@@ -1,11 +1,10 @@
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Lock, XCircle } from "lucide-react";
 import { Section, labelClass, inputClass } from "./form";
 import { useQuote, type PricingGuide } from "../state/QuoteContext";
-import {
-  PROMOTIONS, RATE_CARD, RATE_CARD_EFFECTIVE, SERVICE_LEVELS, SERVICE_LEVEL_VERTICALS,
-  type Promotion, type RiskRating, type ServiceLevel,
-} from "../data/rateCard";
-import { positionLabel, pricingGuidance, type Check } from "../lib/pricingGuidance";
+import { PROMOTIONS, SERVICE_LEVELS, type Promotion, type RateCard, type RiskRating, type ServiceLevel } from "../data/rateCard";
+import { monthList, positionLabel, pricingGuidance, type Check } from "../lib/pricingGuidance";
+import { loadRateCard } from "../lib/cloud/pricingConfig";
 import { usd } from "../lib/pricing";
 
 const ICONS = {
@@ -20,14 +19,38 @@ function CheckLine({ check }: { check: Check }) {
 
 // Rate card and promotions guidance for the rep. CONFIDENTIAL – INTERNAL USE ONLY: Setup only, never client-facing.
 export default function PricingGuidance() {
-  const { quote, update } = useQuote();
-  const g = quote.pricingGuide;
-  const set = (changes: Partial<PricingGuide>) => update({ pricingGuide: { ...g, ...changes } });
-  const r = pricingGuidance(quote);
-  const level = g.serviceLevel;
+  const [card, setCard] = useState<RateCard | null | undefined>(undefined);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    loadRateCard().then(setCard).catch((e) => { setError(e.message ?? String(e)); setCard(null); });
+  }, []);
 
   return (
     <Section title="Pricing guidance" description="Rate card and promotions. Confidential, internal use only: never shown on client outputs." className="lg:col-span-2">
+      {card === undefined && <p className="text-sm text-tngray-dark">Loading the rate card…</p>}
+      {card === null && (
+        <p className="text-sm text-tngray-dark" data-testid="rate-card-missing">
+          {error ? `Couldn't load the rate card: ${error}` : "The rate card hasn't been loaded yet. Ask an admin to load it in Supabase."}
+        </p>
+      )}
+      {card && <Guidance card={card} />}
+    </Section>
+  );
+}
+
+function Guidance({ card }: { card: RateCard }) {
+  const { quote, update } = useQuote();
+  const g = quote.pricingGuide;
+  const set = (changes: Partial<PricingGuide>) => update({ pricingGuide: { ...g, ...changes } });
+  const r = pricingGuidance(card, quote);
+  const level = g.serviceLevel;
+  const c = card.creditMaxMonths;
+  const promo = card.pepmPromo.map((t, i) => {
+    const prev = card.pepmPromo[i - 1]?.headcountBelow;
+    return `${prev ? `${prev}–${t.headcountBelow - 1}` : `under ${t.headcountBelow}`} employees $${t.price} ($${t.direct} direct)`;
+  }).join("; ");
+
+  return (
       <div data-testid="pricing-guidance" className="space-y-4">
         <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-red-700"><Lock className="h-3.5 w-3.5" aria-hidden /> Confidential – internal use only</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -36,7 +59,7 @@ export default function PricingGuidance() {
             <select id="service-level" className={inputClass} value={level} onChange={(e) => set({ serviceLevel: e.target.value as ServiceLevel })}>
               {Object.entries(SERVICE_LEVELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-            <p className="mt-1 text-xs text-tngray-dark">{SERVICE_LEVEL_VERTICALS[level]}</p>
+            <p className="mt-1 text-xs text-tngray-dark">{card.verticals[level]}</p>
           </div>
           <div>
             <label htmlFor="risk-rating" className={labelClass}>Risk rating</label>
@@ -93,7 +116,7 @@ export default function PricingGuidance() {
                 </tr>
               </thead>
               <tbody>
-                {RATE_CARD[level].map((b) => (
+                {card.bands[level].map((b) => (
                   <tr key={b.label} className={`border-t border-tngray-light ${b === r.band ? "bg-orange/10 font-semibold text-navy" : ""}`}>
                     <td className="py-1">{b.label}</td>
                     <td className="py-1 text-right">${b.start}</td>
@@ -104,19 +127,18 @@ export default function PricingGuidance() {
                 ))}
               </tbody>
             </table>
-            <p className="mt-1 text-xs text-tngray-dark">PEPM rates, effective {RATE_CARD_EFFECTIVE}. Start, Target and Floor need no approval; the DOR Floor needs DOR approval.</p>
+            <p className="mt-1 text-xs text-tngray-dark">PEPM rates, effective {card.effective}. Start, Target and Floor need no approval; the DOR Floor needs DOR approval.</p>
           </div>
         </div>
 
         <details className="text-sm text-tngray-dark">
           <summary className="cursor-pointer font-semibold text-navy">Promotion rules</summary>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li><b>PEPM promo:</b> under 50 employees $119 ($109 direct); 50–99 employees $99 ($89 direct). Green or Yellow risk; Red only without an insurance investment. Not for OMS or TNXI. Perpetual pricing, 12-month minimum waived.</li>
-            <li><b>Promo credit (GNP):</b> months free up to 6 at Start, 4 at Target, 3 at Floor, 2 at DOR Floor. 1–4 months needs a 1-year commitment; 5 or more, a 2-year commitment.</li>
-            <li><b>Investment credit:</b> up to 12 months of admin fees, no more than 10% of total revenue. First check date in January or June. Green or Yellow risk only; not for Red, OMS or TNXI.</li>
+            <li><b>PEPM promo:</b> {promo}. Green or Yellow risk; Red only without an insurance investment. Not for OMS or TNXI. Perpetual pricing, 12-month minimum waived.</li>
+            <li><b>Promo credit (GNP):</b> months free up to {c.start} at Start, {c.target} at Target, {c.floor} at Floor, {c.dor} at DOR Floor. 1–{card.creditTwoYearFrom - 1} months needs a 1-year commitment; {card.creditTwoYearFrom} or more, a 2-year commitment.</li>
+            <li><b>Investment credit:</b> up to {card.investmentMaxMonths} months of admin fees, no more than {card.investmentMaxRevenuePct}% of total revenue. First check date in {monthList(card.investmentFirstCheckMonths)}. Green or Yellow risk only; not for Red, OMS or TNXI.</li>
           </ul>
         </details>
       </div>
-    </Section>
   );
 }
