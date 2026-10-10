@@ -90,3 +90,11 @@ export function setupFeeSchedule(q: QuoteInputs) {
   });
   return { gross, discount: gross - net, net, count, schedule };
 }
+
+// Months of free Professional Service Fee in year one, credited at the monthly fee.
+export function freeMonthsCredit(q: QuoteInputs) {
+  const fees = feeSummary(q);
+  const months = Math.max(0, Math.min(12, Math.round(q.freeMonths || 0)));
+  const credit = months * fees.monthly;
+  return { months, credit, yearOne: Math.max(0, fees.annual - credit), effectivePepm: fees.totalWse ? (fees.annual - credit) / 12 / fees.totalWse : 0 };
+}

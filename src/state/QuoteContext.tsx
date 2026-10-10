@@ -27,6 +27,11 @@ export type DeckOptions = {
   paperworkDeadline: string; // yyyy-MM-dd, shown on the onboarding timeline slide
 };
 
+// The prospect's current workers' comp: class codes with billable wages and manual rates (per $100 of wages),
+// plus the total premium before and after the carrier's discounts.
+export type CurrentWcRow = { id: string; state: string; code: string; description: string; wages: number; rate: number };
+export type CurrentWc = { rows: CurrentWcRow[]; totalPremium: number; discountedPremium: number };
+
 export type QuoteInputs = {
   companyName: string;
   repName: string;
@@ -45,6 +50,8 @@ export type QuoteInputs = {
   benefits: BenefitsInputs;
   chevron: ChevronData | null; // imported Chevron proposal
   deck: DeckOptions;
+  currentWc: CurrentWc;
+  freeMonths: number; // months of Professional Service Fee credited in year one
 };
 
 export const EMPTY_QUOTE: QuoteInputs = {
@@ -65,12 +72,19 @@ export const EMPTY_QUOTE: QuoteInputs = {
   benefits: EMPTY_BENEFITS,
   chevron: null,
   deck: { benefitsModel: "trinet", selected: null, paperworkDeadline: "" },
+  currentWc: { rows: [], totalPremium: 0, discountedPremium: 0 },
+  freeMonths: 0,
 };
 
 // Fill in fields added since a quote was saved.
 export function normalizeQuote(saved: unknown): QuoteInputs {
   const s = (saved && typeof saved === "object" ? saved : {}) as Partial<QuoteInputs>;
-  return { ...EMPTY_QUOTE, ...s, benefits: normalizeBenefits(s.benefits), deck: { ...EMPTY_QUOTE.deck, ...s.deck } };
+  return {
+    ...EMPTY_QUOTE, ...s,
+    benefits: normalizeBenefits(s.benefits),
+    deck: { ...EMPTY_QUOTE.deck, ...s.deck },
+    currentWc: { ...EMPTY_QUOTE.currentWc, ...s.currentWc },
+  };
 }
 
 export type SaveState = "saved" | "saving" | "error" | "conflict" | "readonly";

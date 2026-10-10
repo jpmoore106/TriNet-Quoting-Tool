@@ -2,7 +2,9 @@
 // Employee-level census rows are aggregated into plans (rates × enrollment by tier) and kept per employee.
 import {
   TIERS, zeroTiers, percentFunding, emptyRisk,
-  type CensusEmployee, type CostSplit, type CurrentCosts, type FundingStrategy, type HealthPlan, type RiskCoverage, type Tier, type TierValues,
+  riskDesignFromName,
+  type CensusEmployee, type CostSplit, type CurrentCosts, type FundingStrategy, type HealthPlan, type PlanDesign, type RateBasis,
+  type RiskCoverage, type RiskOptions, type Tier, type TierValues,
 } from "../../state/benefits";
 
 const MONEY = /\$([\d,]+\.\d{2})/g;
@@ -14,6 +16,7 @@ export type BssLine = "medical" | "dental" | "vision";
 
 export type ParsedLine = {
   plans: HealthPlan[];
+  appendix: HealthPlan[]; // every plan in the BSS "Plan Attributes & Rates" appendix
   currentPlans: HealthPlan[];
   funding: (FundingStrategy & { limitPlanName: string }) | null;
   proposedTotal: CostSplit | null; // "Proposed Group Total" from the report
@@ -31,6 +34,7 @@ export type BssResult = {
   states: string;
   lines: Record<BssLine, ParsedLine>;
   risk: RiskCoverage[];
+  riskOptions: RiskOptions;
   disabilityPackage: string;
   current: Omit<CurrentCosts, "noCurrentMedical" | "anticipatedRenewalPct">;
   census: CensusEmployee[];
@@ -95,6 +99,82 @@ function fillRates(agg: PlanAgg, table: { name: string; rates: number[] }[]) {
   if (candidates[0]) TIERS.forEach((t, i) => { agg.rates[t] ??= candidates[0].rates[i]; });
 }
 
+// In-network plan design from an appendix row's attribute text (everything between the plan name and the rates).
+function planDesign(line: BssLine, attrs: string): PlanDesign {
+  const d = (label: string, value: string | undefined) => ({ label, value: (value ?? "").trim() });
+  if (line === "medical") {
+    const m = attrs.match(/^(\$[\d,]+ \/ \$[\d,]+) (\$[\d,]+ \/ \$[\d,]+) (\d+%) (.+)$/);
+    if (m) {
+      // Copays (PCP / specialist / urgent care / ER) then Rx tiers 1 / 2 / 3, all separated by " / ".
+      const parts = m[4].split(" / ");
+      const erRx = parts[3]?.match(/^(\S+(?: \*)?) (.+)$/);
+      if (parts.length === 6 && erRx) {
+        return [
+          d("Deductible (single / family)", m[1]), d("Out-of-pocket max (single / family)", m[2]), d("Coinsurance", m[3]),
+          d("Primary care", parts[0]), d("Specialist", parts[1]), d("Urgent care", parts[2]), d("Emergency room", erRx[1]),
+          d("Rx tier 1 / 2 / 3", [erRx[2], parts[4], parts[5]].join(" / ")),
+        ];
+      }
+    }
+  }
+  if (line === "dental") {
+    const m = attrs.match(/^(\$[\d,]+ \/ \$[\d,]+) (\d+%) (\d+%) (\d+%) (\$[\d,]+) (.+?) (\S+\/\S+\/\S+)$/);
+    if (m) {
+      const ortho = m[6].match(/^(\$[\d,]+|N\/A|Not Covered)/i)?.[1] ?? m[6];
+      return [
+        d("Deductible (single / family)", m[1]), d("Preventive", m[2]), d("Basic", m[3]), d("Major", m[4]),
+        d("Annual maximum", m[5]), d("Orthodontia", ortho), d("Endo / perio / oral surgery", m[7].replace(/\//g, " / ")),
+      ];
+    }
+  }
+  if (line === "vision") {
+    const m = attrs.match(/^(\$\S+) (\$\S+) (\$\S+) (Every \d+ months) (Every \d+ months) (Every \d+ months)$/);
+    if (m) {
+      return [
+        d("Exam copay", m[1]), d("Materials copay", m[2]), d("Frame allowance", m[3]),
+        d("Exam frequency", m[4]), d("Frame frequency", m[5]), d("Lens or contacts frequency", m[6]),
+      ];
+    }
+  }
+  return attrs ? [d("Plan details", attrs)] : [];
+}
+
+// The "Plan Attributes & Rates" appendix: every available plan for each line, with rates for all four tiers.
+function parseAppendix(pages: string[][]) {
+  const out: Record<BssLine, HealthPlan[]> = { medical: [], dental: [], vision: [] };
+  let current: BssLine | null = null;
+  for (const page of pages) {
+    const head = page.findIndex((l) => /^Plan Attributes & Rates/.test(l));
+    if (head < 0) { current = null; continue; }
+    const cont = page[head].match(/: (Medical|Dental|Vision) \(cont\.\)/)?.[1];
+    const named = (cont ?? page[head + 1] ?? "").toLowerCase();
+    if (named === "medical" || named === "dental" || named === "vision") current = named;
+    if (!current) continue;
+    for (const l of page.slice(head + 1)) {
+      const rates = moneyAll(l);
+      const first = l.indexOf("$");
+      if (rates.length < 4 || first <= 0) continue;
+      const name = l.slice(0, first).trim();
+      // Attributes run from the first "$" to just before the last four rates.
+      const tail = l.slice(first);
+      const lastFour = [...tail.matchAll(MONEY)].slice(-4);
+      const attrs = tail.slice(0, lastFour[0].index).trim();
+      const [ee, es, ec, ef] = lastFour.map((x) => money(x[1]));
+      const plan = toPlan({ name, rates: { ee, es, ec, ef }, enrollment: zeroTiers() }, "");
+      plan.design = planDesign(current, attrs);
+      if (!out[current].some((p) => p.name === name)) out[current].push(plan);
+    }
+  }
+  return out;
+}
+
+// Match a quoted plan to its appendix row: same name, or the appendix name is the start of the quoted name.
+function findInAppendix(name: string, appendix: HealthPlan[]) {
+  const n = name.toLowerCase();
+  return appendix.find((p) => p.name.toLowerCase() === n)
+    ?? appendix.filter((p) => n.startsWith(p.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
+}
+
 function parseFunding(lines: string[]) {
   const head = lines.find((l) => l.startsWith("Contribution Type"));
   if (!head) return null;
@@ -153,6 +233,7 @@ function parseCensus(pages: string[][], line: BssLine, table: { name: string; ra
   for (const a of [...proposed.values(), ...current.values()]) fillRates(a, table);
   const carrier = [...proposed.keys()][0]?.split(" ")[0] ?? "";
   return {
+    appendix: [],
     plans: [...proposed.values()].map((a) => toPlan(a, carrier)),
     currentPlans: [...current.values()].map((a) => toPlan(a, "")),
     funding, proposedTotal, currentTotal, employees, rows,
@@ -207,6 +288,42 @@ function parseRisk(pages: string[][]) {
   return { risk, pkg };
 }
 
+const BASIS: Record<string, RateBasis> = { "1,000": "per1000", "100": "per100", "10": "per10" };
+
+// "Disability - All Plan Options" packages and "Life and AD&D - All Plan Options".
+function parseRiskOptions(pages: string[][]): RiskOptions {
+  const disability: RiskOptions["disability"] = [];
+  const life: RiskOptions["life"] = [];
+  let section: "disability" | "life" | null = null;
+  for (const page of pages) {
+    if (page.some((l) => /Disability - All Plan Options/.test(l))) section = "disability";
+    else if (page.some((l) => /Life and AD&D - All Plan Options/.test(l))) section = "life";
+    else if (!page.some((l) => /^Plan Rates & Attributes/.test(l))) section = null;
+    if (!section) continue;
+    for (const l of page) {
+      if (section === "disability") {
+        const pkg = l.match(/^W2 - (.+?) \$([\d,]+\.\d{2})$/);
+        if (pkg) { disability.push({ name: pkg[1], monthly: money(pkg[2]), rows: [] }); continue; }
+        const r = l.match(/^(STD|LTD) (.+?) \$([\d.]+) \$(1,000|100|10) of covered(?: payroll)? (\d+) \$([\d,]+\.\d{2}) \$([\d,]+\.\d{2})/);
+        if (r && disability.length) {
+          const plan = r[2].split(/ (?:Other States|All States|[A-Z]{2},)/)[0].trim();
+          const states = r[2].slice(plan.length).trim();
+          disability[disability.length - 1].rows.push({
+            type: r[1] as "STD" | "LTD", plan, states, rate: parseFloat(r[3]), basis: BASIS[r[4]],
+            employees: parseInt(r[5], 10), volume: money(r[6]), monthly: money(r[7]),
+          });
+        }
+      } else {
+        const lf = l.match(/^(.+?Life & AD&D) \$([\d.]+) \$1,000 of covered(?: payroll)? (\d+) \$([\d,]+\.\d{2}) \$([\d,]+\.\d{2})/);
+        if (lf && !life.some((x) => x.plan === lf[1])) {
+          life.push({ plan: lf[1], rate: parseFloat(lf[2]), employees: parseInt(lf[3], 10), volume: money(lf[4]), monthly: money(lf[5]) });
+        }
+      }
+    }
+  }
+  return { disability, life };
+}
+
 export function parseBss(pages: string[][]): BssResult {
   const all = pages.flat();
   const text = all.join("\n");
@@ -221,7 +338,18 @@ export function parseBss(pages: string[][]): BssResult {
     dental: parseCensus(pages, "dental", table),
     vision: parseCensus(pages, "vision", table),
   };
+  const appendix = parseAppendix(pages);
+  (Object.keys(lines) as BssLine[]).forEach((k) => {
+    lines[k].appendix = appendix[k];
+    for (const p of lines[k].plans) p.design = findInAppendix(p.name, appendix[k])?.design ?? p.design;
+  });
   const { risk, pkg } = parseRisk(pages);
+  for (const c of risk) {
+    c.employeePaid = c.enabled && /employee paid/i.test(c.benefit);
+    if (c.employeePaid) c.employerPct = 0;
+    c.design = riskDesignFromName(c.id, c.benefit);
+  }
+  const riskOptions = parseRiskOptions(pages);
   const summary = parseSummaryTable(pages);
   const zero = { employer: 0, employee: 0 };
 
@@ -275,6 +403,7 @@ export function parseBss(pages: string[][]): BssResult {
     states: footer.match(/States: ([A-Z, ]+)/)?.[1]?.replace(/[ ,]+$/, "").trim() ?? "",
     lines,
     risk,
+    riskOptions,
     disabilityPackage: pkg,
     current: {
       medical: summary.current.medical ?? lines.medical.currentTotal ?? zero,

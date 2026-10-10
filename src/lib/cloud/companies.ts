@@ -60,10 +60,14 @@ export async function saveCompany(id: string, quote: QuoteInputs, version: strin
   return data[0].updated_at;
 }
 
-// Owners, their managers and admins can edit a company.
+// Owners, their managers and admins can edit a company. Until the database has can_edit_company
+// (supabase/migrations/002), team members get a read-only view.
 export async function canEditCompany(id: string): Promise<boolean> {
   const { data, error } = await supabase.rpc("can_edit_company", { c: id });
-  if (error) throw error;
+  if (error) {
+    console.warn("can_edit_company unavailable; opening read-only", error.message);
+    return false;
+  }
   return data === true;
 }
 
