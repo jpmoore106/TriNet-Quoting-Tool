@@ -3,6 +3,8 @@ import DeckSlides from "../components/DeckSlides";
 import { PAGE_SLIDES } from "../data/masterDeck";
 import { Plus, Trash2 } from "lucide-react";
 import PageTitle from "../components/PageTitle";
+import CarveOuts from "../components/CarveOuts";
+import PricingGuidance from "../components/PricingGuidance";
 import CallInsightsCard from "../components/CallInsightsCard";
 import DocumentUploads from "../components/DocumentUploads";
 import { Section, TextField, NumberField, MoneyField, labelClass, inputClass, primaryButton, secondaryButton } from "../components/form";
@@ -73,6 +75,7 @@ export default function Setup() {
           <datalist id="medical-carriers">{MEDICAL_CARRIERS.map((c) => <option key={c} value={c} />)}</datalist>
           <TextField id="renewal" label="Medical renewal date" type="date"
             value={quote.medicalRenewalDate} onChange={(v) => update({ medicalRenewalDate: v })} />
+          <CarveOuts />
         </Section>
 
         <Section title="Professional Service Fee" description="Per employee per month (PEPM).">
@@ -156,6 +159,8 @@ export default function Setup() {
             Costs and savings are shown on the <Link to="/professional-service-fees" className="underline text-orange-dark">Professional Service Fees</Link> page.
           </p>
         </Section>
+
+        <PricingGuidance />
 
         <Section title="Setup fee" description="One-time implementation fee, with optional discount and installment billing." className="lg:col-span-2">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

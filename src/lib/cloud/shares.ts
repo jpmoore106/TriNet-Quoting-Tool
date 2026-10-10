@@ -27,7 +27,7 @@ export type Share = {
 
 const limitOnly = (line: HealthLine): HealthLine => ({ ...line, appendix: line.appendix.filter((p) => p.id === line.funding.limitPlanId) });
 
-// Leaves out list prices and discounts, setup-fee notes, the employee census, the Chevron proposal, deck picks and call insights.
+// Leaves out list prices and discounts, setup-fee notes, the employee census, the Chevron proposal, deck picks, call insights and pricing guidance.
 export function prospectSnapshot(q: QuoteInputs, rep: { name: string; email: string }): ProspectSnapshot {
   const setup = setupFeeSchedule(q);
   const pay = q.chevron?.payroll;
@@ -50,6 +50,7 @@ export function prospectSnapshot(q: QuoteInputs, rep: { name: string; email: str
       chevron: null,
       deck: EMPTY_QUOTE.deck,
       callInsights: null, // call notes, concerns and quotes are internal
+      pricingGuide: EMPTY_QUOTE.pricingGuide, // rate card position, risk rating and promotion are internal
     },
     timeline: {
       payrollStart: pay?.trinetPayBegin ?? "",

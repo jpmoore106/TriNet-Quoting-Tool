@@ -91,6 +91,10 @@ export type LineSummary = { key: string; label: string; path: string; premium: n
 export function benefitsSummary(b: BenefitsInputs) {
   const lines: LineSummary[] = [];
   const health = (key: "medical" | "dental" | "vision", label: string) => {
+    if (key === "medical" && b.medicalCarvedOut) {
+      lines.push({ key, label, path: key, premium: 0, employer: 0, employee: 0, note: "Carved out: the company keeps its current medical plan" });
+      return;
+    }
     const t = healthLineTotals(b[key]);
     const notes = [t.enrolled ? `${t.enrolled} enrolled` : "", t.hsa ? `incl. ${usdShort(t.hsa)} HSA` : ""].filter(Boolean);
     lines.push({ key, label, path: key, premium: t.premium + t.hsa, employer: t.employer, employee: t.employee, note: notes.join(" · ") || undefined });
@@ -113,7 +117,7 @@ export function benefitsSummary(b: BenefitsInputs) {
   lines.push({ key: "401k", label: "401(k)", path: "401k", premium: k.employerMonthly, employer: k.employerMonthly, employee: 0, note: "Employer match and fees" });
 
   const total = lines.reduce((a, l) => ({ premium: a.premium + l.premium, employer: a.employer + l.employer, employee: a.employee + l.employee }), { premium: 0, employer: 0, employee: 0 });
-  return { lines, total, medicalEnrolled: healthLineTotals(b.medical).enrolled };
+  return { lines, total, medicalEnrolled: b.medicalCarvedOut ? 0 : healthLineTotals(b.medical).enrolled };
 }
 
 // Current (incumbent) vs. TriNet monthly cost by line. TriNet figures follow the current funding strategy.
@@ -126,13 +130,15 @@ export function currentVsTrinet(b: BenefitsInputs, currentRenewalDate = "") {
   const life = riskPremium(b.risk.find((r) => r.id === "life")!);
   const dis = b.risk.filter((r) => r.id !== "life").map(riskPremium).reduce((a, r) => ({ employer: a.employer + r.employer, employee: a.employee + r.employee }), { employer: 0, employee: 0 });
   const c = b.current;
-  const rows = [
+  const all = [
     { key: "medical" as const, label: "Medical", current: c.noCurrentMedical ? { employer: 0, employee: 0 } : { employer: c.medical.employer * factor, employee: c.medical.employee * factor }, trinet: { employer: med.employer, employee: med.employee } },
     { key: "dental" as const, label: "Dental", current: c.dental, trinet: { employer: den.employer, employee: den.employee } },
     { key: "vision" as const, label: "Vision", current: c.vision, trinet: { employer: vis.employer, employee: vis.employee } },
     { key: "life" as const, label: "Life / AD&D", current: c.life, trinet: { employer: life.employer, employee: life.employee } },
     { key: "disability" as const, label: "Disability", current: c.disability, trinet: dis },
   ];
+  // A carved-out medical plan stays the same either way, so it's left out of the comparison.
+  const rows = b.medicalCarvedOut ? all.filter((r) => r.key !== "medical") : all;
   const sum = (k: "current" | "trinet") => rows.reduce((a, r) => ({ employer: a.employer + r[k].employer, employee: a.employee + r[k].employee }), { employer: 0, employee: 0 });
   return { rows, current: sum("current"), trinet: sum("trinet"), renewal, factor };
 }
@@ -182,7 +188,7 @@ export function employeeCosts(b: BenefitsInputs) {
     return { plan: plan.name, employer, employee: premium - employerContribution(plan, line, tier) };
   };
   return b.census.map((e) => {
-    const medical = cost("medical", e.medical, e.tier);
+    const medical = b.medicalCarvedOut ? null : cost("medical", e.medical, e.tier);
     const dental = cost("dental", e.dental, e.tier);
     const vision = cost("vision", e.vision, e.tier);
     const employer = (medical?.employer ?? 0) + (dental?.employer ?? 0) + (vision?.employer ?? 0);

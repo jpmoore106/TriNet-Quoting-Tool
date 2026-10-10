@@ -276,6 +276,7 @@ function ImportStatus() {
 function FundingAlerts() {
   const { quote } = useQuote();
   const failing = (["medical", "dental", "vision"] as const)
+    .filter((k) => !(k === "medical" && quote.benefits.medicalCarvedOut))
     .map((k) => ({ k, check: fundingCheck(quote.benefits[k]) }))
     .filter((x) => x.check && !x.check.ok);
   if (failing.length === 0) return null;

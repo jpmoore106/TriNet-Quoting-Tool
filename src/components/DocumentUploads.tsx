@@ -5,7 +5,7 @@ import { Section, primaryButton, secondaryButton } from "./form";
 import { useQuote } from "../state/QuoteContext";
 import { CURRENT_LINES } from "../state/benefits";
 import type { BssResult } from "../lib/bss/parseBss";
-import type { ChevronData } from "../lib/chevron/parseChevron";
+import { chevronGaps, type ChevronData } from "../lib/chevron/parseChevron";
 import { chevronChanges } from "../lib/chevron/importChevron";
 import { formatDate, usd } from "../lib/pricing";
 import { analyzeCall, transcriptMeta, type TranscriptMeta } from "../lib/callInsights";
@@ -148,7 +148,16 @@ function ChevronTile({ state: { state, onFile } }: { state: ReturnType<typeof us
       status={
         state.step === "reading" ? `Reading ${state.fileName}…`
         : state.step === "error" ? <span role="alert" className="flex items-start gap-1.5 text-alert"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{state.message}</span>
-        : c ? <span className="flex items-start gap-1.5 text-navy"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-orange-dark" aria-hidden />Imported {c.fileName}{c.quoteNumber ? ` (${c.quoteNumber})` : ""}{c.validUntil ? `, valid until ${formatDate(c.validUntil)}` : ""}.</span>
+        : c ? (
+          <>
+            <span className="flex items-start gap-1.5 text-navy"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-orange-dark" aria-hidden />Imported {c.fileName}{c.quoteNumber ? ` (${c.quoteNumber})` : ""}{c.validUntil ? `, valid until ${formatDate(c.validUntil)}` : ""}.</span>
+            {chevronGaps(c).length > 0 && (
+              <span className="mt-1 flex items-start gap-1.5 text-alert" data-testid="chevron-gaps-status">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />Not in this file: {chevronGaps(c).join(", ")}.
+              </span>
+            )}
+          </>
+        )
         : "The proposal PDF fills in the company, rep, service fee, implementation fee, pay dates, taxes and workers' comp."
       }>
       <label className={`${primaryButton} cursor-pointer`}>
@@ -157,6 +166,19 @@ function ChevronTile({ state: { state, onFile } }: { state: ReturnType<typeof us
           onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
       </label>
     </Tile>
+  );
+}
+
+// Warn when the proposal is missing the payroll pages, e.g. a "preview" export.
+export function GapsNote({ data }: { data: ChevronData }) {
+  const gaps = chevronGaps(data);
+  if (!gaps.length) return null;
+  return (
+    <p role="alert" data-testid="chevron-gaps" className="mt-3 flex items-start gap-2 rounded-lg bg-alert/5 px-3 py-2 text-sm font-semibold text-alert">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      This proposal doesn't include {gaps.join(", ")}. Preview copies of the proposal often leave out those pages: export the full
+      proposal from Chevron (with the cost summary, tax and workers' comp pages) and upload that instead.
+    </p>
   );
 }
 
@@ -188,6 +210,7 @@ function ChevronPreview({ data: c, onApply, onCancel }: { data: ChevronData; onA
         <li><span className="font-semibold">Annual gross wages:</span> {usd(c.annual.grossWages, 0)} · <span className="font-semibold">payroll taxes</span> {usd(c.annual.payrollTaxes, 0)}</li>
         <li><span className="font-semibold">Tax & WC rates:</span> {c.taxes.map((t) => `${t.state} (class ${t.classCode})`).join(", ") || "none"}</li>
       </ul>
+      <GapsNote data={c} />
       {rows.length > 0 && (
         <table className="mt-3 w-full max-w-2xl text-sm" data-testid="chevron-changes">
           <thead><tr className="text-left text-tngray-dark"><th className="py-1 pr-3 font-semibold">Setup field</th><th className="py-1 pr-3 font-semibold">Now</th><th className="py-1 font-semibold">From proposal</th></tr></thead>

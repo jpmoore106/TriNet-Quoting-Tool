@@ -13,6 +13,7 @@ import { MIN_FUNDING_PCT, currentPlanTotals, employerContribution, fundingCheck,
 import { usd } from "../../lib/pricing";
 import { CellMoney, CellNumber, Totals } from "./fields";
 import { DesignFields, DesignList } from "./PlanDesign";
+import CarveOuts, { CarvedOutBanner } from "../../components/CarveOuts";
 
 type LineKey = "medical" | "dental" | "vision";
 
@@ -28,7 +29,7 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
   const f = line.funding;
   const isMedical = lineKey === "medical";
   const hsaPlans = line.plans.filter(isHsaEligible);
-  const check = fundingCheck(line);
+  const check = isMedical && quote.benefits.medicalCarvedOut ? null : fundingCheck(line);
   // Appendix plans not already quoted, cheapest first.
   const quotedNames = new Set(line.plans.map((p) => p.name.toLowerCase()));
   const appendixOnly = line.appendix.filter((p) => !quotedNames.has(p.name.toLowerCase())).sort((a, b) => a.rates.ee - b.rates.ee);
@@ -37,6 +38,8 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
 
   return (
     <div className="space-y-6">
+      {isMedical && quote.benefits.medicalCarvedOut && <CarvedOutBanner what="medical" />}
+      {isMedical && <CarveOuts only="medical" />}
       <Totals items={[
         { label: "Enrolled", value: String(totals.enrolled), testId: `${lineKey}-enrolled` },
         { label: "Monthly premium", value: usd(totals.premium), testId: `${lineKey}-premium` },

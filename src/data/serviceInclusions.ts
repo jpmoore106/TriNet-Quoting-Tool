@@ -82,3 +82,22 @@ export const SERVICE_INCLUSIONS: InclusionCategory[] = [
     ],
   },
 ];
+
+// What's included for this deal: carved-out medical or workers' comp stays with the company's own carrier.
+export function inclusionsFor(carveOuts: { medical: boolean; workersComp: boolean }): InclusionCategory[] {
+  return SERVICE_INCLUSIONS.map((c) => ({
+    ...c,
+    items: c.items
+      .filter((i) => !(carveOuts.workersComp && /workers' comp/i.test(i)))
+      .map((i) => (carveOuts.medical ? i.replace("large-group medical, dental and vision plans", "large-group dental and vision plans") : i)),
+  }));
+}
+
+// A plain-language line for client-facing outputs, or "" when nothing is carved out.
+export function carveOutNote(carveOuts: { medical: boolean; workersComp: boolean }) {
+  const parts = [
+    carveOuts.medical && "medical (your current medical plan stays in place)",
+    carveOuts.workersComp && "workers' compensation (your current policy stays in place)",
+  ].filter(Boolean);
+  return parts.length ? `Not included in this proposal: ${parts.join(" and ")}.` : "";
+}

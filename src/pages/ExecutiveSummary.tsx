@@ -7,12 +7,13 @@ import WingMotif from "../components/WingMotif";
 import { primaryButton } from "../components/form";
 import { KEY_MESSAGES } from "../data/brandMessages";
 import { useQuote } from "../state/QuoteContext";
-import { SERVICE_INCLUSIONS } from "../data/serviceInclusions";
+import { carveOutNote, inclusionsFor } from "../data/serviceInclusions";
 import { feeSummary, formatDate, freeMonthsCredit, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../lib/pricing";
 
 // Print-ready, letter-size executive summary. Rendered without the app header.
 export default function ExecutiveSummary() {
   const { quote } = useQuote();
+  const carveOuts = { medical: quote.benefits.medicalCarvedOut, workersComp: quote.workersCompCarvedOut };
   const fees = feeSummary(quote);
   const breaks = priceBreakRows(quote);
   const cap = rateCapLimits(quote);
@@ -162,7 +163,7 @@ export default function ExecutiveSummary() {
           <section>
             <H>What's included</H>
             <div className="grid grid-cols-3 gap-x-6 gap-y-3">
-              {SERVICE_INCLUSIONS.map((c) => (
+              {inclusionsFor(carveOuts).map((c) => (
                 <div key={c.title} className="flex gap-2.5">
                   <img src={c.icon} alt="" className="h-8 w-8 shrink-0 object-contain" />
                   <div>
@@ -172,6 +173,7 @@ export default function ExecutiveSummary() {
                 </div>
               ))}
             </div>
+            {carveOutNote(carveOuts) && <p className="mt-2 text-tngray-dark" data-testid="carve-out-note">{carveOutNote(carveOuts)}</p>}
           </section>
 
           <section>

@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import LogoFullColorUrl from "../assets/trinet_logo_full_color.png";
 import LogoReversedUrl from "../assets/trinet_logo_reversed.png";
 import type { QuoteInputs } from "../state/QuoteContext";
-import { SERVICE_INCLUSIONS } from "../data/serviceInclusions";
+import { carveOutNote, inclusionsFor } from "../data/serviceInclusions";
 import { KEY_MESSAGES } from "../data/brandMessages";
 import { feeSummary, formatDate, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "./pricing";
 
@@ -74,10 +74,12 @@ export async function buildProposalDeck(q: QuoteInputs): Promise<PptxGenJS> {
   const breaks = priceBreakRows(q);
   const cap = rateCapLimits(q);
   const setup = setupFeeSchedule(q);
+  const carveOuts = { medical: q.benefits.medicalCarvedOut, workersComp: q.workersCompCarvedOut };
+  const inclusions = inclusionsFor(carveOuts);
   const [logoFull, logoReversed, ...icons] = await Promise.all([
     loadImage(LogoFullColorUrl),
     loadImage(LogoReversedUrl),
-    ...SERVICE_INCLUSIONS.map((c) => loadImage(c.icon)),
+    ...inclusions.map((c) => loadImage(c.icon)),
   ]);
   const clientLogo = q.companyLogo ? await loadImage(q.companyLogo).catch(() => null) : null;
 
@@ -172,7 +174,7 @@ export async function buildProposalDeck(q: QuoteInputs): Promise<PptxGenJS> {
 
   // 5. What's included, with TriNet's icon set.
   const inc = content("What's included in your fee", "Everything your team needs, in one fee");
-  SERVICE_INCLUSIONS.forEach((c, i) => {
+  inclusions.forEach((c, i) => {
     const x = 0.6 + (i % 3) * 4.12;
     const y = 1.8 + Math.floor(i / 3) * 2.7;
     inc.addImage(fit(icons[i], x, y, 0.6, 0.6));
@@ -182,6 +184,8 @@ export async function buildProposalDeck(q: QuoteInputs): Promise<PptxGenJS> {
       { x, y: y + 0.75, w: 3.9, h: 1.75, fontFace: FONT, fontSize: 12, color: DARK_GRAY, valign: "top", paraSpaceAfter: 3, margin: 0 },
     );
   });
+  const note = carveOutNote(carveOuts);
+  if (note) inc.addText(note, { x: 0.6, y: 6.95, w: W - 1.2, h: 0.35, fontFace: FONT, fontSize: 11, italic: true, color: DARK_GRAY, margin: 0 });
 
   // 6. Growth pricing (price breaks replace the full-time PEPM)
   if (breaks.length) {
