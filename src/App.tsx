@@ -14,6 +14,8 @@ import DisabilityLife from "./pages/benefits/DisabilityLife";
 import Voluntary from "./pages/benefits/Voluntary";
 import Retirement from "./pages/benefits/Retirement";
 import Employees from "./pages/benefits/Employees";
+import Taxes from "./pages/Taxes";
+import WorkersComp from "./pages/WorkersComp";
 
 export default function App() {
   return (
@@ -36,8 +38,8 @@ export default function App() {
           </Route>
           <Route path="competitive-analysis" element={<ComingSoon title="Competitive Analysis" description="Compare TriNet with the incumbent providers." />} />
           <Route path="vroi" element={<ComingSoon title="vROI" description="Value and return on investment." />} />
-          <Route path="workers-comp" element={<ComingSoon title="Worker's Comp & EPLI" description="Workers' compensation and employment practices liability coverage and costs." />} />
-          <Route path="taxes" element={<ComingSoon title="Taxes" description="State unemployment (SUTA) and other employer payroll taxes." />} />
+          <Route path="workers-comp" element={<WorkersComp />} />
+          <Route path="taxes" element={<Taxes />} />
           <Route path="wc-breakdown" element={<Navigate to="/workers-comp" replace />} />
           <Route path="suta" element={<Navigate to="/taxes" replace />} />
           <Route path="paperwork-deadlines" element={<PaperworkDeadlines />} />
