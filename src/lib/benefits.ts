@@ -14,7 +14,8 @@ export function employerContribution(plan: HealthPlan, line: HealthLine, tier: T
   else {
     const pct = (f.pct[tier] || 0) / 100;
     amount = premium * pct;
-    const limit = f.limitPlanId ? line.plans.find((p) => p.id === f.limitPlanId) : undefined;
+    // The limit plan can be any plan in the BSS appendix, not just a quoted one.
+    const limit = f.limitPlanId ? [...line.plans, ...(line.appendix ?? [])].find((p) => p.id === f.limitPlanId) : undefined;
     if (limit) amount = Math.min(amount, (limit.rates[tier] || 0) * pct);
   }
   return Math.max(0, Math.min(premium, amount));
@@ -65,7 +66,7 @@ export function currentPlanTotals(plans: HealthPlan[]) {
 export function riskPremium(c: RiskCoverage) {
   if (!c.enabled) return { premium: 0, employer: 0, employee: 0 };
   const premium = c.quotedMonthly > 0 ? c.quotedMonthly : (c.rate || 0) * ((c.volume || 0) / RATE_BASIS[c.basis].unit);
-  const employer = (premium * Math.min(100, Math.max(0, c.employerPct || 0))) / 100;
+  const employer = c.employeePaid ? 0 : (premium * Math.min(100, Math.max(0, c.employerPct || 0))) / 100;
   return { premium, employer, employee: premium - employer };
 }
 
@@ -100,7 +101,8 @@ export function benefitsSummary(b: BenefitsInputs) {
   for (const id of ["std", "ltd", "life"] as const) {
     const c = b.risk.find((r) => r.id === id)!;
     const label = id === "std" ? "STD" : id === "ltd" ? "LTD" : "Life / AD&D";
-    lines.push({ key: id, label, path: "disability-life", ...riskPremium(c), note: c.enabled && c.benefit ? c.benefit : undefined });
+    const note = c.enabled ? [c.benefit, c.employeePaid ? "Employee paid" : ""].filter(Boolean).join(" · ") : "";
+    lines.push({ key: id, label, path: "disability-life", ...riskPremium(c), note: note || undefined });
   }
   const vol = b.voluntary.reduce((a, v) => {
     const employer = (v.monthlyPremium || 0) * Math.min(100, Math.max(0, v.employerPct || 0)) / 100;
@@ -187,4 +189,47 @@ export function employeeCosts(b: BenefitsInputs) {
     const employee = (medical?.employee ?? 0) + (dental?.employee ?? 0) + (vision?.employee ?? 0);
     return { ...e, tierLabel: TIER_LABELS[e.tier], medicalCost: medical, dentalCost: dental, visionCost: vision, employer, employee };
   });
+}
+
+export type CensusLine = "medical" | "dental" | "vision";
+
+// Move one employee to another plan (or waive, with planName ""), keeping plan enrollment counts in step.
+// A plan picked from the BSS appendix is added to the quote.
+export function remapEmployee(b: BenefitsInputs, employeeId: string, key: CensusLine, planName: string): BenefitsInputs {
+  const e = b.census.find((x) => x.id === employeeId);
+  if (!e || e[key] === planName) return b;
+  let plans = b[key].plans.map((p) => (p.name === e[key] ? { ...p, enrollment: { ...p.enrollment, [e.tier]: Math.max(0, (p.enrollment[e.tier] || 0) - 1) } } : p));
+  if (planName) {
+    if (!plans.some((p) => p.name === planName)) {
+      const fromAppendix = b[key].appendix.find((p) => p.name === planName);
+      if (!fromAppendix) return b;
+      plans = [...plans, { ...fromAppendix, id: crypto.randomUUID(), enrollment: { ee: 0, es: 0, ec: 0, ef: 0 } }];
+    }
+    plans = plans.map((p) => (p.name === planName ? { ...p, enrollment: { ...p.enrollment, [e.tier]: (p.enrollment[e.tier] || 0) + 1 } } : p));
+  }
+  return {
+    ...b,
+    [key]: { ...b[key], plans },
+    census: b.census.map((x) => (x.id === employeeId ? { ...x, [key]: planName } : x)),
+  };
+}
+
+// Change an employee's coverage tier, moving their enrollment in each plan they're in.
+export function retierEmployee(b: BenefitsInputs, employeeId: string, tier: Tier): BenefitsInputs {
+  const e = b.census.find((x) => x.id === employeeId);
+  if (!e || e.tier === tier) return b;
+  const move = (key: CensusLine) => ({
+    ...b[key],
+    plans: b[key].plans.map((p) => p.name !== e[key] ? p : {
+      ...p,
+      enrollment: { ...p.enrollment, [e.tier]: Math.max(0, (p.enrollment[e.tier] || 0) - 1), [tier]: (p.enrollment[tier] || 0) + 1 },
+    }),
+  });
+  return {
+    ...b,
+    medical: e.medical ? move("medical") : b.medical,
+    dental: e.dental ? move("dental") : b.dental,
+    vision: e.vision ? move("vision") : b.vision,
+    census: b.census.map((x) => (x.id === employeeId ? { ...x, tier } : x)),
+  };
 }

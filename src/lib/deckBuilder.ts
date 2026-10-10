@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import type JSZip from "jszip";
 import type { QuoteInputs } from "../state/QuoteContext";
 import { MASTER_DECK_URL, MASTER_SLIDES } from "../data/masterDeck";
-import { feeSummary, priceBreakRows, setupFeeSchedule } from "./pricing";
+import { feeSummary, freeMonthsCredit, priceBreakRows, setupFeeSchedule } from "./pricing";
 
 const PPTX_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
@@ -106,7 +106,17 @@ function personalizePricing(xml: string, q: QuoteInputs): Fill {
     xml = fill(xml, warnings, "a. Your Per WSE Monthly Service Fee shall not increase more than 5%; and ",
       `a. Your Per WSE Monthly Service Fee shall not increase more than ${q.rateCap.percent}%; and `, "rate cap");
   } else warnings.push("No rate cap in the quote, so the rate-lock terms are the master deck's sample.");
-  warnings.push("Check the benefits decision support and 3 months free credit lines; they aren't part of the quote.");
+  const free = freeMonthsCredit(q);
+  if (free.months > 0 && fees.monthly > 0) {
+    const m = `${free.months} Month${free.months > 1 ? "s" : ""}`;
+    xml = fill(xml, warnings, "3 Months Free Credit (Year One):  ", `${m} Free Credit (Year One):  `, "free credit heading");
+    xml = fill(xml, warnings, "$6,213", money(free.credit), "free credit amount");
+    xml = fill(xml, warnings, "3 months × $109 PEPM × 19 employees = $6,213",
+      `${free.months} month${free.months > 1 ? "s" : ""} × ${money(fees.monthly)}/month = ${money(free.credit)}`, "free credit math");
+    warnings.push("Check the benefits decision support line; it isn't part of the quote.");
+  } else {
+    warnings.push("No months free in the quote: delete the free credit box, and check the benefits decision support line.");
+  }
   return { xml, warnings };
 }
 

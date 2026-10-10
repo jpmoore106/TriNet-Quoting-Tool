@@ -19,10 +19,11 @@ export function applyBss(b: BenefitsInputs, r: BssResult, fileName: string): Ben
     let funding = b[key].funding;
     if (parsed.funding) {
       const { limitPlanName, ...f } = parsed.funding;
-      const limit = limitPlanName ? plans.find((p) => p.name.toLowerCase().startsWith(limitPlanName.toLowerCase())) : undefined;
+      const byName = (list: typeof plans) => list.find((p) => p.name.toLowerCase().startsWith(limitPlanName.toLowerCase()));
+      const limit = limitPlanName ? byName(plans) ?? byName(parsed.appendix) : undefined;
       funding = { ...f, limitPlanId: limit?.id ?? "" };
     }
-    return { ...b[key], plans, funding, currentPlans: parsed.currentPlans };
+    return { ...b[key], plans, funding, currentPlans: parsed.currentPlans, appendix: parsed.appendix };
   };
   return {
     ...b,
@@ -31,6 +32,7 @@ export function applyBss(b: BenefitsInputs, r: BssResult, fileName: string): Ben
     dental: line("dental"),
     vision: line("vision"),
     risk: r.risk,
+    riskOptions: r.riskOptions,
     census: r.census,
     current: { ...r.current, anticipatedRenewalPct: b.current.anticipatedRenewalPct, noCurrentMedical: r.lines.medical.currentPlans.length === 0 && r.current.medical.employer + r.current.medical.employee === 0 },
     source: {

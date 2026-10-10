@@ -8,7 +8,7 @@ import { primaryButton } from "../components/form";
 import { KEY_MESSAGES } from "../data/brandMessages";
 import { useQuote } from "../state/QuoteContext";
 import { SERVICE_INCLUSIONS } from "../data/serviceInclusions";
-import { feeSummary, formatDate, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../lib/pricing";
+import { feeSummary, formatDate, freeMonthsCredit, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../lib/pricing";
 
 // Print-ready, letter-size executive summary. Rendered without the app header.
 export default function ExecutiveSummary() {
@@ -17,6 +17,7 @@ export default function ExecutiveSummary() {
   const breaks = priceBreakRows(quote);
   const cap = rateCapLimits(quote);
   const setup = setupFeeSchedule(quote);
+  const free = freeMonthsCredit(quote);
   const company = quote.companyName || "Your Company";
 
   const today = [
@@ -74,6 +75,11 @@ export default function ExecutiveSummary() {
               <Tile label="Setup fee" value={setup.gross > 0 ? usd(setup.net, 0) : "—"}
                 detail={setup.discount > 0 ? `${usd(setup.discount, 0)} discount` : setup.count > 1 ? `${setup.count} payments` : undefined} />
             </div>
+            {free.months > 0 && fees.monthly > 0 && (
+              <p className="mt-2 font-semibold" data-testid="exec-free-months">
+                {free.months} month{free.months > 1 ? "s" : ""} free: a {usd(free.credit, 0)} credit in year one, for a year-one fee of {usd(free.yearOne, 0)}.
+              </p>
+            )}
             {fees.hasPt && (
               <p className="mt-2 text-xs text-tngray-dark">
                 {fees.ft} full-time × {usd(quote.ftPepm || 0)} + {fees.pt} part-time × {usd(quote.ptPepm || 0)} per month.

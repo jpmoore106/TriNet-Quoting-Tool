@@ -1,16 +1,18 @@
 import { AlertTriangle, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 import DeckSlides from "../../components/DeckSlides";
 import { PAGE_SLIDES } from "../../data/masterDeck";
 import { Card, CardContent } from "../../components/ui/card";
 import { Section, labelClass, inputClass, secondaryButton } from "../../components/form";
 import { useQuote } from "../../state/QuoteContext";
 import {
-  FUNDING_LABELS, TIERS, TIER_LABELS, isHsaEligible, newHealthPlan,
+  FUNDING_LABELS, HEALTH_DESIGN_FIELDS, TIERS, TIER_LABELS, designOrBlank, isHsaEligible, newHealthPlan, zeroTiers,
   type FundingStrategy, type FundingType, type HealthLine, type HealthPlan, type HsaFunding,
 } from "../../state/benefits";
 import { MIN_FUNDING_PCT, currentPlanTotals, employerContribution, fundingCheck, healthLineTotals, hsaContribution, planTotals } from "../../lib/benefits";
 import { usd } from "../../lib/pricing";
 import { CellMoney, CellNumber, Totals } from "./fields";
+import { DesignFields, DesignList } from "./PlanDesign";
 
 type LineKey = "medical" | "dental" | "vision";
 
@@ -27,6 +29,11 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
   const isMedical = lineKey === "medical";
   const hsaPlans = line.plans.filter(isHsaEligible);
   const check = fundingCheck(line);
+  // Appendix plans not already quoted, cheapest first.
+  const quotedNames = new Set(line.plans.map((p) => p.name.toLowerCase()));
+  const appendixOnly = line.appendix.filter((p) => !quotedNames.has(p.name.toLowerCase())).sort((a, b) => a.rates.ee - b.rates.ee);
+  const addFromAppendix = (p: HealthPlan) =>
+    setLine({ plans: [...line.plans, { ...p, id: crypto.randomUUID(), enrollment: zeroTiers() }] });
 
   return (
     <div className="space-y-6">
@@ -52,7 +59,16 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
               <select id={`${lineKey}-limit`} className={inputClass} value={f.limitPlanId}
                 onChange={(e) => setFunding({ limitPlanId: e.target.value })}>
                 <option value="">None</option>
-                {line.plans.map((p, i) => <option key={p.id} value={p.id}>Capped at {p.name || `Plan ${i + 1}`}</option>)}
+                <optgroup label="Quoted plans">
+                  {line.plans.map((p, i) => <option key={p.id} value={p.id}>Capped at {p.name || `Plan ${i + 1}`}</option>)}
+                </optgroup>
+                {appendixOnly.length > 0 && (
+                  <optgroup label={`All plans in the BSS appendix (${appendixOnly.length})`}>
+                    {appendixOnly.map((p) => (
+                      <option key={p.id} value={p.id}>Capped at {p.name} ({usd(p.rates.ee)} EE)</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
           )}
@@ -174,6 +190,8 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
                 </tbody>
               </table>
             </div>
+            <DesignFields idPrefix={plan.id} design={designOrBlank(plan.design, HEALTH_DESIGN_FIELDS[lineKey])}
+              onChange={(design) => setPlan(plan.id, { design })} />
             <p className="text-sm text-tngray-dark" data-testid={`${plan.id}-totals`}>
               {pt.enrolled} enrolled · {usd(pt.premium)}/mo premium · <span className="font-semibold text-navy">{usd(pt.employer + pt.hsa)}/mo employer</span>
               {pt.hsa > 0 && ` (incl. ${usd(pt.hsa)} HSA)`} · {usd(pt.employee)}/mo employee
@@ -186,11 +204,61 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
         <Plus className="h-4 w-4" /> Add {title.toLowerCase()} plan
       </button>
 
+      {line.appendix.length > 0 && <Appendix plans={appendixOnly} total={line.appendix.length} title={title} onAdd={addFromAppendix} lineKey={lineKey} />}
+
       {line.currentPlans.length > 0 && <CurrentPlans plans={line.currentPlans} title={title} />}
       {lineKey === "medical" && (
         <DeckSlides slides={PAGE_SLIDES.medical} intro="Walk through the medical comparison and TriNet's benefits support." />
       )}
     </div>
+  );
+}
+
+// Every plan in the BSS appendix, with design and rates; any can be added to the quote.
+function Appendix({ plans, total, title, onAdd, lineKey }: {
+  plans: HealthPlan[]; total: number; title: string; onAdd: (p: HealthPlan) => void; lineKey: LineKey;
+}) {
+  const [filter, setFilter] = useState("");
+  const q = filter.trim().toLowerCase();
+  const shown = plans.filter((p) => !q || p.name.toLowerCase().includes(q));
+  return (
+    <Card>
+      <CardContent className="p-5 sm:p-6">
+        <details data-testid={`${lineKey}-appendix`}>
+          <summary className="cursor-pointer text-lg font-bold text-navy">
+            All available {title.toLowerCase()} plans <span className="text-sm font-medium text-tngray-dark">({total} in the BSS plan appendix)</span>
+          </summary>
+          <p className="mt-1 text-sm text-tngray-dark">Plan design and rates for every plan in the BSS. Add any plan to the quote, or use it as the contribution limit.</p>
+          <input aria-label={`Search ${title.toLowerCase()} plans`} placeholder="Search plans" value={filter} onChange={(e) => setFilter(e.target.value)}
+            className={`${inputClass} mt-3 max-w-xs`} />
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[820px] text-sm">
+              <thead>
+                <tr className="text-left text-tngray-dark border-b border-tngray-light">
+                  <th className="py-2 pr-3 font-semibold">Plan</th>
+                  <th className="py-2 pr-3 font-semibold">Plan design</th>
+                  {TIERS.map((t) => <th key={t} className="py-2 pr-3 font-semibold text-right">{TIER_LABELS[t]}</th>)}
+                  <th className="py-2 font-semibold"><span className="sr-only">Add</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((p) => (
+                  <tr key={p.id} className="border-b border-tngray-light last:border-0 align-top">
+                    <td className="py-2 pr-3 font-semibold">{p.name}</td>
+                    <td className="py-2 pr-3"><DesignList design={p.design} /></td>
+                    {TIERS.map((t) => <td key={t} className="py-2 pr-3 text-right">{usd(p.rates[t])}</td>)}
+                    <td className="py-2">
+                      <button type="button" className="whitespace-nowrap text-sm font-semibold text-navy underline" onClick={() => onAdd(p)}
+                        aria-label={`Add ${p.name} to the quote`}>Add to quote</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </CardContent>
+    </Card>
   );
 }
 

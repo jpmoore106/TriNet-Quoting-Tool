@@ -11,9 +11,10 @@ import { primaryButton } from "../../components/form";
 import { useAuth } from "../../state/AuthContext";
 import { openShare, recordView, type ProspectSnapshot } from "../../lib/cloud/shares";
 import { SERVICE_INCLUSIONS } from "../../data/serviceInclusions";
-import { feeSummary, formatDate, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../../lib/pricing";
+import { feeSummary, formatDate, freeMonthsCredit, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../../lib/pricing";
 import { benefitsSummary, currentVsTrinet, employerContribution, hsaContribution } from "../../lib/benefits";
 import { TIERS, TIER_LABELS, type HealthLine } from "../../state/benefits";
+import { DesignList } from "../benefits/PlanDesign";
 
 // The page a prospect opens from a share link. They sign in with an emailed code; the database only
 // returns the proposal if the link was sent to their email and hasn't expired or been revoked.
@@ -90,6 +91,7 @@ function Proposal({ snapshot, email, onSignOut }: { snapshot: ProspectSnapshot; 
   const breaks = priceBreakRows(q);
   const cap = rateCapLimits(q);
   const setup = setupFeeSchedule(q);
+  const free = freeMonthsCredit(q);
   const benefits = benefitsSummary(q.benefits);
   const benefitLines = benefits.lines.filter((l) => l.premium > 0);
   const comparison = currentVsTrinet(q.benefits, q.medicalRenewalDate);
@@ -142,6 +144,11 @@ function Proposal({ snapshot, email, onSignOut }: { snapshot: ProspectSnapshot; 
               {fees.totalWse} employees{fees.hasPt ? ` (${fees.ft} full-time at ${usd(q.ftPepm)} and ${fees.pt} part-time at ${usd(q.ptPepm)} per month)` : ""}.
               {fees.minimumApplied ? ` Includes the ${usd(q.serviceFeeMinimum, 0)} monthly minimum service fee.` : ""}
             </p>
+            {free.months > 0 && fees.monthly > 0 && (
+              <p className="mt-3 rounded-xl bg-orange/10 px-4 py-3 font-semibold" data-testid="prospect-free-months">
+                {free.months} month{free.months > 1 ? "s" : ""} free: a {usd(free.credit, 0)} credit in your first year, so your year-one service fee is {usd(free.yearOne, 0)}.
+              </p>
+            )}
             {(breaks.length > 0 || cap) && (
               <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-6">
                 {breaks.length > 0 && (
@@ -194,6 +201,20 @@ function Proposal({ snapshot, email, onSignOut }: { snapshot: ProspectSnapshot; 
               {(["medical", "dental", "vision"] as const).map((k) => q.benefits[k].plans.length > 0 && (
                 <PlanTable key={k} title={k[0].toUpperCase() + k.slice(1)} line={q.benefits[k]} />
               ))}
+              {q.benefits.risk.some((c) => c.enabled) && (
+                <div className="mt-6">
+                  <h3 className="font-bold">Disability and life</h3>
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {q.benefits.risk.filter((c) => c.enabled).map((c) => (
+                      <div key={c.id} className="rounded-xl bg-canvas p-4">
+                        <p className="font-semibold">{c.name}</p>
+                        <p className="text-xs text-tngray-dark">{c.benefit}{c.employeePaid ? " · Employee paid" : ""}</p>
+                        <div className="mt-2"><DesignList design={c.design} /></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Section>
           )}
 
@@ -311,7 +332,10 @@ function PlanTable({ title, line }: { title: string; line: HealthLine }) {
         <tbody>
           {line.plans.map((p) => (
             <tr key={p.id} className="border-b border-tngray-light">
-              <td className="py-1.5 pr-3"><span className="font-semibold">{p.name || "Plan"}</span>{p.carrier ? <span className="block text-xs text-tngray-dark">{p.carrier}</span> : null}</td>
+              <td className="py-1.5 pr-3 align-top">
+                <span className="font-semibold">{p.name || "Plan"}</span>{p.carrier ? <span className="block text-xs text-tngray-dark">{p.carrier}</span> : null}
+                {p.design?.some((d) => d.value) && <div className="mt-1"><DesignList design={p.design} /></div>}
+              </td>
               {TIERS.map((t) => {
                 const premium = p.rates[t] || 0;
                 const employee = premium - employerContribution(p, line, t);

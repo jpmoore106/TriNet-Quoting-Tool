@@ -2,7 +2,7 @@ import type React from "react";
 import DeckSlides from "../components/DeckSlides";
 import { PAGE_SLIDES } from "../data/masterDeck";
 import { Link } from "react-router-dom";
-import { Check, Pencil } from "lucide-react";
+import { Check, Gift, Pencil } from "lucide-react";
 import growthIcon from "../assets/icons/growth.png";
 import riskIcon from "../assets/icons/risk.png";
 import technologyIcon from "../assets/icons/technology.png";
@@ -12,11 +12,13 @@ import WingMotif from "../components/WingMotif";
 import { secondaryButton } from "../components/form";
 import { useQuote } from "../state/QuoteContext";
 import { SERVICE_INCLUSIONS } from "../data/serviceInclusions";
-import { feeSummary, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../lib/pricing";
+import { feeSummary, freeMonthsCredit, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../lib/pricing";
+import { inputClass, labelClass } from "../components/form";
 
 export default function ProfessionalServiceFees() {
-  const { quote } = useQuote();
+  const { quote, update } = useQuote();
   const fees = feeSummary(quote);
+  const free = freeMonthsCredit(quote);
   const breaks = priceBreakRows(quote);
   const cap = rateCapLimits(quote);
   const setup = setupFeeSchedule(quote);
@@ -80,6 +82,39 @@ export default function ProfessionalServiceFees() {
           </div>
         </div>
       </section>
+
+      <Card className="mt-6" data-testid="free-months">
+        <CardContent className="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6 items-center">
+          <div className="flex items-center gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange/10 text-orange-dark"><Gift className="h-6 w-6" aria-hidden /></span>
+            <div>
+              <label htmlFor="free-months" className={labelClass}>Months free (year one)</label>
+              <input id="free-months" type="number" min={0} max={12} step={1} className={`${inputClass} w-28`} placeholder="0"
+                value={quote.freeMonths || ""} onChange={(e) => update({ freeMonths: Math.max(0, Math.min(12, Math.round(parseFloat(e.target.value) || 0))) })} />
+            </div>
+          </div>
+          {free.months > 0 && fees.monthly > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl bg-canvas px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-tngray-dark">Year-one credit</p>
+                <p className="mt-0.5 text-xl font-bold text-navy" data-testid="free-credit">{usd(free.credit, 0)}</p>
+                <p className="text-xs text-tngray-dark">{free.months} month{free.months > 1 ? "s" : ""} × {usd(fees.monthly, 0)}</p>
+              </div>
+              <div className="rounded-xl bg-canvas px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-tngray-dark">Year-one fee</p>
+                <p className="mt-0.5 text-xl font-bold text-navy" data-testid="free-year-one">{usd(free.yearOne, 0)}</p>
+                <p className="text-xs text-tngray-dark">instead of {usd(fees.annual, 0)}</p>
+              </div>
+              <div className="rounded-xl bg-canvas px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-tngray-dark">Effective year-one PEPM</p>
+                <p className="mt-0.5 text-xl font-bold text-navy">{usd(free.effectivePepm)}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-tngray-dark">Credit the Professional Service Fee for the first months of service. The credit shows in the outputs and the proposal deck.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {(breaks.length > 0 || cap) && (
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">

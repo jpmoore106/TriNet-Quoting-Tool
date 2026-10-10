@@ -19,7 +19,20 @@ export type HealthPlan = {
   hsaEligible: boolean;
   rates: TierValues; // monthly premium per enrollee, by tier
   enrollment: TierValues; // enrolled employees, by tier
+  design?: PlanDesign; // in-network plan design, e.g. deductible and copays
 };
+
+// Plan design fields shown for hand-entered plans; imported plans carry the BSS appendix's details.
+export const HEALTH_DESIGN_FIELDS: Record<"medical" | "dental" | "vision", string[]> = {
+  medical: ["Deductible (single / family)", "Out-of-pocket max (single / family)", "Coinsurance", "Primary care", "Specialist", "Urgent care", "Emergency room", "Rx tier 1 / 2 / 3"],
+  dental: ["Deductible (single / family)", "Preventive", "Basic", "Major", "Annual maximum", "Orthodontia", "Endo / perio / oral surgery"],
+  vision: ["Exam copay", "Materials copay", "Frame allowance", "Exam frequency", "Frame frequency", "Lens or contacts frequency"],
+};
+export const designOrBlank = (design: PlanDesign | undefined, fields: string[]): PlanDesign =>
+  design?.length ? design : fields.map((label) => ({ label, value: "" }));
+
+// Plan design details as label → value, in display order (e.g. "Deductible (single / family)" → "$500 / $1,500").
+export type PlanDesign = { label: string; value: string }[];
 
 // TriNet funding strategies: a percent of each plan (optionally capped at that percent of a limit plan) or a flat dollar amount.
 export type FundingType = "percent" | "flat";
@@ -42,6 +55,7 @@ export type HealthLine = {
   funding: FundingStrategy;
   hsa: HsaFunding;
   currentPlans: HealthPlan[]; // incumbent plans, for comparison
+  appendix: HealthPlan[]; // every plan offered in the BSS plan appendix, with rates and design (none enrolled)
 };
 
 // Group term life/AD&D, STD and LTD: premium = rate × (volume ÷ rate unit), unless a quoted monthly cost is imported.
@@ -64,7 +78,15 @@ export type RiskCoverage = {
   employerPct: number;
   quotedMonthly: number; // monthly cost from an imported quote (0 = calculate from rate × volume)
   employees: number;
+  employeePaid: boolean; // voluntary: employees pay the full premium
+  design: PlanDesign; // e.g. benefit percent, maximum, elimination period
 };
+
+// Disability packages and life options listed in the BSS ("All Plan Options").
+export type RiskOptionRow = { type: "STD" | "LTD"; plan: string; states: string; rate: number; basis: RateBasis; employees: number; volume: number; monthly: number };
+export type DisabilityOption = { name: string; monthly: number; rows: RiskOptionRow[] };
+export type LifeOption = { plan: string; rate: number; employees: number; volume: number; monthly: number };
+export type RiskOptions = { disability: DisabilityOption[]; life: LifeOption[] };
 
 export type VoluntaryProduct = { id: string; name: string; carrier: string; monthlyPremium: number; employerPct: number };
 
@@ -123,21 +145,42 @@ export type BenefitsInputs = {
   current: CurrentCosts;
   census: CensusEmployee[];
   source: QuoteSource | null;
+  riskOptions: RiskOptions;
 };
 
 export const percentFunding = (pct: number): FundingStrategy => ({
   type: "percent", pct: { ee: pct, es: pct, ec: pct, ef: pct }, limitPlanId: "", flat: zeroTiers(),
 });
 const healthLine = (pct: number): HealthLine => ({
-  plans: [], funding: percentFunding(pct), hsa: { enabled: false, monthly: zeroTiers() }, currentPlans: [],
+  plans: [], funding: percentFunding(pct), hsa: { enabled: false, monthly: zeroTiers() }, currentPlans: [], appendix: [],
 });
 const split = (): CostSplit => ({ employer: 0, employee: 0 });
 
 export const emptyRisk = (): RiskCoverage[] => [
-  { id: "life", name: "Basic Life / AD&D", enabled: false, carrier: "", benefit: "", rate: 0, basis: "per1000", volume: 0, employerPct: 100, quotedMonthly: 0, employees: 0 },
-  { id: "std", name: "Short-Term Disability", enabled: false, carrier: "", benefit: "", rate: 0, basis: "per100", volume: 0, employerPct: 100, quotedMonthly: 0, employees: 0 },
-  { id: "ltd", name: "Long-Term Disability", enabled: false, carrier: "", benefit: "", rate: 0, basis: "per100", volume: 0, employerPct: 100, quotedMonthly: 0, employees: 0 },
+  { id: "life", name: "Basic Life / AD&D", enabled: false, carrier: "", benefit: "", rate: 0, basis: "per1000", volume: 0, employerPct: 100, quotedMonthly: 0, employees: 0, employeePaid: false, design: [] },
+  { id: "std", name: "Short-Term Disability", enabled: false, carrier: "", benefit: "", rate: 0, basis: "per100", volume: 0, employerPct: 100, quotedMonthly: 0, employees: 0, employeePaid: false, design: [] },
+  { id: "ltd", name: "Long-Term Disability", enabled: false, carrier: "", benefit: "", rate: 0, basis: "per100", volume: 0, employerPct: 100, quotedMonthly: 0, employees: 0, employeePaid: false, design: [] },
 ];
+
+// Plan design fields for STD, LTD and Life, filled in where the plan name says (e.g. "60% STD Company Paid $750").
+export const RISK_DESIGN_FIELDS: Record<RiskCoverage["id"], string[]> = {
+  std: ["Benefit percentage", "Weekly maximum", "Elimination period", "Benefit duration"],
+  ltd: ["Benefit percentage", "Monthly maximum", "Elimination period", "Benefit duration"],
+  life: ["Life benefit", "AD&D benefit", "Age reduction"],
+};
+export function riskDesignFromName(id: RiskCoverage["id"], plan: string): PlanDesign {
+  const pct = plan.match(/(\d+(?:\.\d+)?)%/)?.[1];
+  const max = plan.match(/\$([\d,]+)(?!.*Life)/)?.[1];
+  const life = plan.match(/^(\$[\d,]+|\dX Earnings)/i)?.[1];
+  const values: Record<string, string> = {
+    "Benefit percentage": pct ? `${pct}% of earnings` : "",
+    "Weekly maximum": id === "std" && max ? `$${max}` : "",
+    "Monthly maximum": id === "ltd" && max ? `$${max}` : "",
+    "Life benefit": life ?? "",
+    "AD&D benefit": life ? `Matches life benefit (${life})` : "",
+  };
+  return RISK_DESIGN_FIELDS[id].map((label) => ({ label, value: values[label] ?? "" }));
+}
 
 export const EMPTY_BENEFITS: BenefitsInputs = {
   effectiveDate: "",
@@ -153,6 +196,7 @@ export const EMPTY_BENEFITS: BenefitsInputs = {
   current: { noCurrentMedical: false, anticipatedRenewalPct: 0, medical: split(), dental: split(), vision: split(), life: split(), disability: split() },
   census: [],
   source: null,
+  riskOptions: { disability: [], life: [] },
 };
 
 // Plans denoted HDHP are always HSA-eligible; other plans can be marked eligible by hand.
@@ -177,6 +221,7 @@ export function normalizeBenefits(saved: Partial<BenefitsInputs> | undefined): B
       funding,
       hsa: merged.hsa ?? fallback.hsa,
       currentPlans: merged.currentPlans ?? [],
+      appendix: merged.appendix ?? [],
       plans: merged.plans.map((p) => ({ ...p, hsaEligible: p.hsaEligible ?? false })),
     };
   };
@@ -185,7 +230,11 @@ export function normalizeBenefits(saved: Partial<BenefitsInputs> | undefined): B
     medical: line(saved?.medical, EMPTY_BENEFITS.medical),
     dental: line(saved?.dental, EMPTY_BENEFITS.dental),
     vision: line(saved?.vision, EMPTY_BENEFITS.vision),
-    risk: emptyRisk().map((d) => ({ ...d, ...(saved?.risk?.find((r) => r.id === d.id) ?? {}) })),
+    risk: emptyRisk().map((d) => {
+      const r = { ...d, ...(saved?.risk?.find((x) => x.id === d.id) ?? {}) };
+      return { ...r, design: r.design?.length ? r.design : riskDesignFromName(r.id, r.benefit) };
+    }),
+    riskOptions: { ...EMPTY_BENEFITS.riskOptions, ...saved?.riskOptions },
     current: { ...EMPTY_BENEFITS.current, ...saved?.current },
     census: saved?.census ?? [],
   };

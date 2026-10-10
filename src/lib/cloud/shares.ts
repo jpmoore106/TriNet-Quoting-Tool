@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { EMPTY_QUOTE, normalizeQuote, type QuoteInputs } from "../../state/QuoteContext";
 import { setupFeeSchedule } from "../pricing";
+import type { HealthLine } from "../../state/benefits";
 
 // What a prospect sees: the quote minus internal detail, plus the rep's contact details and onboarding dates.
 export type ProspectSnapshot = {
@@ -24,6 +25,8 @@ export type Share = {
   share_views: ShareView[];
 };
 
+const limitOnly = (line: HealthLine): HealthLine => ({ ...line, appendix: line.appendix.filter((p) => p.id === line.funding.limitPlanId) });
+
 // Leaves out list prices and discounts, setup-fee notes, the employee census, the Chevron proposal and deck picks.
 export function prospectSnapshot(q: QuoteInputs, rep: { name: string; email: string }): ProspectSnapshot {
   const setup = setupFeeSchedule(q);
@@ -36,7 +39,14 @@ export function prospectSnapshot(q: QuoteInputs, rep: { name: string; email: str
       ...q,
       repName: rep.name || q.repName,
       setupFee: { amount: setup.net, discount: 0, installments: setup.count, firstInvoiceDate: q.setupFee.firstInvoiceDate, notes: "" },
-      benefits: { ...q.benefits, census: [], source: null },
+      // The prospect sees quoted plans only, not the whole BSS appendix or option lists. An appendix plan used as the
+      // contribution limit stays, since employer costs are capped by it.
+      benefits: {
+        ...q.benefits, census: [], source: null, riskOptions: { disability: [], life: [] },
+        medical: limitOnly(q.benefits.medical),
+        dental: limitOnly(q.benefits.dental),
+        vision: limitOnly(q.benefits.vision),
+      },
       chevron: null,
       deck: EMPTY_QUOTE.deck,
     },

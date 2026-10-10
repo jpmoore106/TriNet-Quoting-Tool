@@ -95,8 +95,8 @@ export const MASTER_SLIDES: MasterSlide[] = [
   { n: 66, section: "Open Market Solutions", title: "OMS PEO comparison job aid", hidden: true, internal: true },
   {
     n: 67, section: "Pricing, timeline and close", title: "Transparent pricing",
-    fills: "Service fee, setup fee, price breaks and rate cap",
-    note: "Check the benefits decision support, minimum-fee lock and free-credit lines.",
+    fills: "Service fee, setup fee, price breaks, rate cap and months free",
+    note: "Check the benefits decision support and minimum-fee lock lines.",
   },
   { n: 68, section: "Pricing, timeline and close", title: "Timeline & Next Steps (divider)" },
   {
