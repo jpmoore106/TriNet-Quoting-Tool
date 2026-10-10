@@ -8,8 +8,11 @@ import { CellMoney, CellNumber, Totals } from "./fields";
 export default function DisabilityLife() {
   const { quote, updateBenefits } = useQuote();
   const risk = quote.benefits.risk;
-  const setCov = (id: RiskCoverage["id"], changes: Partial<RiskCoverage>) =>
-    updateBenefits({ risk: risk.map((c) => (c.id === id ? { ...c, ...changes } : c)) });
+  // Editing the rate inputs switches from the imported quoted cost to rate × volume.
+  const setCov = (id: RiskCoverage["id"], changes: Partial<RiskCoverage>) => {
+    const recalc = "rate" in changes || "volume" in changes || "basis" in changes;
+    updateBenefits({ risk: risk.map((c) => (c.id === id ? { ...c, ...changes, ...(recalc ? { quotedMonthly: 0 } : {}) } : c)) });
+  };
   const total = risk.map(riskPremium).reduce((a, r) => ({ premium: a.premium + r.premium, employer: a.employer + r.employer, employee: a.employee + r.employee }), { premium: 0, employer: 0, employee: 0 });
 
   return (
@@ -56,6 +59,11 @@ export default function DisabilityLife() {
                     <CellNumber label={`${c.name} employer %`} value={c.employerPct} suffix="%" onChange={(v) => setCov(c.id, { employerPct: Math.min(100, v) })} />
                   </div>
                 </div>
+                {c.quotedMonthly > 0 && (
+                  <p className="text-sm text-tngray-dark">
+                    Monthly cost of {usd(c.quotedMonthly)} is from the imported quote{c.employees ? ` (${c.employees} employees)` : ""}. Editing the rate, basis or volume recalculates it.
+                  </p>
+                )}
                 <p className="text-sm text-tngray-dark" data-testid={`${c.id}-totals`}>
                   {usd(p.premium)}/mo premium · <span className="font-semibold text-navy">{usd(p.employer)}/mo employer</span> · {usd(p.employee)}/mo employee
                 </p>

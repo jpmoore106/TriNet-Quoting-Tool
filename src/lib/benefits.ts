@@ -4,44 +4,66 @@ import {
 } from "../state/benefits";
 
 // Employer's monthly contribution for one enrollee in a plan tier, never more than the premium.
+// Percent strategies can be capped at the same percent of a limit plan's premium.
 export function employerContribution(plan: HealthPlan, line: HealthLine, tier: Tier) {
   const premium = plan.rates[tier] || 0;
   const f = line.funding;
-  let amount = 0;
-  if (f.type === "pctTier") amount = (premium * (f.pct[tier] || 0)) / 100;
-  else if (f.type === "pctEeOnly") amount = ((plan.rates.ee || 0) * (f.eeOnlyPct || 0)) / 100;
-  else if (f.type === "flat") amount = f.flat[tier] || 0;
+  let amount: number;
+  if (f.type === "flat") amount = f.flat[tier] || 0;
   else {
-    const base = line.plans.find((p) => p.id === f.basePlanId) ?? plan;
-    amount = ((base.rates[tier] || 0) * (f.pct[tier] || 0)) / 100;
+    const pct = (f.pct[tier] || 0) / 100;
+    amount = premium * pct;
+    const limit = f.limitPlanId ? line.plans.find((p) => p.id === f.limitPlanId) : undefined;
+    if (limit) amount = Math.min(amount, (limit.rates[tier] || 0) * pct);
   }
   return Math.max(0, Math.min(premium, amount));
 }
 
+// Employer HSA contribution per enrollee per month (HSA-eligible plans only).
+export function hsaContribution(plan: HealthPlan, line: HealthLine, tier: Tier) {
+  return line.hsa?.enabled && plan.hsaEligible ? line.hsa.monthly[tier] || 0 : 0;
+}
+
 export function planTotals(plan: HealthPlan, line: HealthLine) {
-  let premium = 0, employer = 0, enrolled = 0;
+  let premium = 0, employer = 0, hsa = 0, enrolled = 0;
   for (const t of TIERS) {
     const n = plan.enrollment[t] || 0;
     premium += (plan.rates[t] || 0) * n;
     employer += employerContribution(plan, line, t) * n;
+    hsa += hsaContribution(plan, line, t) * n;
     enrolled += n;
   }
-  return { premium, employer, employee: premium - employer, enrolled };
+  return { premium, employer, employee: premium - employer, hsa, enrolled };
 }
 
+// Line totals; employer HSA contributions are an employer cost on top of premium.
 export function healthLineTotals(line: HealthLine) {
   return line.plans.reduce(
     (acc, p) => {
       const t = planTotals(p, line);
-      return { premium: acc.premium + t.premium, employer: acc.employer + t.employer, employee: acc.employee + t.employee, enrolled: acc.enrolled + t.enrolled };
+      return {
+        premium: acc.premium + t.premium,
+        employer: acc.employer + t.employer + t.hsa,
+        employee: acc.employee + t.employee,
+        hsa: acc.hsa + t.hsa,
+        enrolled: acc.enrolled + t.enrolled,
+      };
     },
-    { premium: 0, employer: 0, employee: 0, enrolled: 0 },
+    { premium: 0, employer: 0, employee: 0, hsa: 0, enrolled: 0 },
   );
+}
+
+// Current (incumbent) plan totals from rates × enrollment.
+export function currentPlanTotals(plans: HealthPlan[]) {
+  return plans.reduce((a, p) => {
+    for (const t of TIERS) { a.premium += (p.rates[t] || 0) * (p.enrollment[t] || 0); a.enrolled += p.enrollment[t] || 0; }
+    return a;
+  }, { premium: 0, enrolled: 0 });
 }
 
 export function riskPremium(c: RiskCoverage) {
   if (!c.enabled) return { premium: 0, employer: 0, employee: 0 };
-  const premium = (c.rate || 0) * ((c.volume || 0) / RATE_BASIS[c.basis].unit);
+  const premium = c.quotedMonthly > 0 ? c.quotedMonthly : (c.rate || 0) * ((c.volume || 0) / RATE_BASIS[c.basis].unit);
   const employer = (premium * Math.min(100, Math.max(0, c.employerPct || 0))) / 100;
   return { premium, employer, employee: premium - employer };
 }
@@ -59,6 +81,8 @@ export function retirementCosts(b: BenefitsInputs) {
   return { participants, matchAnnual, feesAnnual, deferralsAnnual, employerAnnual, employerMonthly: employerAnnual / 12 };
 }
 
+const usdShort = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
 export type LineSummary = { key: string; label: string; path: string; premium: number; employer: number; employee: number; note?: string };
 
 // Monthly totals for every benefit line, for the financial summary.
@@ -66,7 +90,8 @@ export function benefitsSummary(b: BenefitsInputs) {
   const lines: LineSummary[] = [];
   const health = (key: "medical" | "dental" | "vision", label: string) => {
     const t = healthLineTotals(b[key]);
-    lines.push({ key, label, path: key, ...t, note: t.enrolled ? `${t.enrolled} enrolled` : undefined });
+    const notes = [t.enrolled ? `${t.enrolled} enrolled` : "", t.hsa ? `incl. ${usdShort(t.hsa)} HSA` : ""].filter(Boolean);
+    lines.push({ key, label, path: key, premium: t.premium + t.hsa, employer: t.employer, employee: t.employee, note: notes.join(" · ") || undefined });
   };
   health("medical", "Medical");
   health("dental", "Dental");
@@ -83,4 +108,23 @@ export function benefitsSummary(b: BenefitsInputs) {
 
   const total = lines.reduce((a, l) => ({ premium: a.premium + l.premium, employer: a.employer + l.employer, employee: a.employee + l.employee }), { premium: 0, employer: 0, employee: 0 });
   return { lines, total, medicalEnrolled: healthLineTotals(b.medical).enrolled };
+}
+
+// Current (incumbent) vs. TriNet monthly cost by line. TriNet figures follow the current funding strategy.
+export function currentVsTrinet(b: BenefitsInputs) {
+  const med = healthLineTotals(b.medical);
+  const den = healthLineTotals(b.dental);
+  const vis = healthLineTotals(b.vision);
+  const life = riskPremium(b.risk.find((r) => r.id === "life")!);
+  const dis = b.risk.filter((r) => r.id !== "life").map(riskPremium).reduce((a, r) => ({ employer: a.employer + r.employer, employee: a.employee + r.employee }), { employer: 0, employee: 0 });
+  const c = b.current;
+  const rows = [
+    { key: "medical" as const, label: "Medical", current: c.noCurrentMedical ? { employer: 0, employee: 0 } : c.medical, trinet: { employer: med.employer, employee: med.employee } },
+    { key: "dental" as const, label: "Dental", current: c.dental, trinet: { employer: den.employer, employee: den.employee } },
+    { key: "vision" as const, label: "Vision", current: c.vision, trinet: { employer: vis.employer, employee: vis.employee } },
+    { key: "life" as const, label: "Life / AD&D", current: c.life, trinet: { employer: life.employer, employee: life.employee } },
+    { key: "disability" as const, label: "Disability", current: c.disability, trinet: dis },
+  ];
+  const sum = (k: "current" | "trinet") => rows.reduce((a, r) => ({ employer: a.employer + r[k].employer, employee: a.employee + r[k].employee }), { employer: 0, employee: 0 });
+  return { rows, current: sum("current"), trinet: sum("trinet") };
 }

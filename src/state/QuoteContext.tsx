@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { EMPTY_BENEFITS, type BenefitsInputs } from "./benefits";
+import { EMPTY_BENEFITS, normalizeBenefits, type BenefitsInputs } from "./benefits";
 
 export type PriceBreak = { id: string; headcount: number; pepm: number };
 
@@ -58,7 +58,7 @@ function load(): QuoteInputs {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return EMPTY;
     const saved = JSON.parse(raw);
-    return { ...EMPTY, ...saved, benefits: { ...EMPTY_BENEFITS, ...saved.benefits } };
+    return { ...EMPTY, ...saved, benefits: normalizeBenefits(saved.benefits) };
   } catch {
     return EMPTY;
   }
