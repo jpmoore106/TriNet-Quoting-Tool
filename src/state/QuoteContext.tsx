@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { EMPTY_BENEFITS, type BenefitsInputs } from "./benefits";
 
 export type PriceBreak = { id: string; headcount: number; pepm: number };
 
@@ -30,6 +31,7 @@ export type QuoteInputs = {
   priceBreaks: PriceBreak[]; // growth pricing: PEPM at a future headcount
   rateCap: RateCap;
   setupFee: SetupFee;
+  benefits: BenefitsInputs;
 };
 
 const EMPTY: QuoteInputs = {
@@ -46,6 +48,7 @@ const EMPTY: QuoteInputs = {
   priceBreaks: [],
   rateCap: { enabled: false, percent: 0 },
   setupFee: { amount: 0, discount: 0, installments: 1, firstInvoiceDate: "", notes: "" },
+  benefits: EMPTY_BENEFITS,
 };
 
 const STORAGE_KEY = "trinet-quote-inputs";
@@ -53,7 +56,9 @@ const STORAGE_KEY = "trinet-quote-inputs";
 function load(): QuoteInputs {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...EMPTY, ...JSON.parse(raw) } : EMPTY;
+    if (!raw) return EMPTY;
+    const saved = JSON.parse(raw);
+    return { ...EMPTY, ...saved, benefits: { ...EMPTY_BENEFITS, ...saved.benefits } };
   } catch {
     return EMPTY;
   }
@@ -62,6 +67,7 @@ function load(): QuoteInputs {
 type QuoteContextValue = {
   quote: QuoteInputs;
   update: (changes: Partial<QuoteInputs>) => void;
+  updateBenefits: (changes: Partial<BenefitsInputs>) => void;
   reset: () => void;
   totalWse: number;
 };
@@ -83,6 +89,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const value: QuoteContextValue = {
     quote,
     update: (changes) => setQuote((q) => ({ ...q, ...changes })),
+    updateBenefits: (changes) => setQuote((q) => ({ ...q, benefits: { ...q.benefits, ...changes } })),
     reset: () => setQuote(EMPTY),
     totalWse: (quote.ftWse || 0) + (quote.ptWse || 0),
   };
