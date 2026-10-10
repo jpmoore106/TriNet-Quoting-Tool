@@ -32,10 +32,10 @@ export default function Login() {
     if (!isTrinetEmail(email)) return setError(`Sign in with your TriNet email (ending in ${TRINET_DOMAIN}).`);
     if (!password) return setError("Enter your password.");
     setBusy(true);
+    // On success the signed-in redirect above takes over; navigating here too would fire a second, late redirect.
     const err = await signInWithPassword(email, password);
     setBusy(false);
     if (err) setError(err);
-    else navigate(from, { replace: true });
   }
 
   return (
