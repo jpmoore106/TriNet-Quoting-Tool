@@ -1,12 +1,12 @@
-import { Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Section, labelClass, inputClass, secondaryButton } from "../../components/form";
 import { useQuote } from "../../state/QuoteContext";
 import {
-  FUNDING_LABELS, TIERS, TIER_LABELS, newHealthPlan,
+  FUNDING_LABELS, TIERS, TIER_LABELS, isHsaEligible, newHealthPlan,
   type FundingStrategy, type FundingType, type HealthLine, type HealthPlan, type HsaFunding,
 } from "../../state/benefits";
-import { currentPlanTotals, employerContribution, healthLineTotals, hsaContribution, planTotals } from "../../lib/benefits";
+import { MIN_FUNDING_PCT, currentPlanTotals, employerContribution, fundingCheck, healthLineTotals, hsaContribution, planTotals } from "../../lib/benefits";
 import { usd } from "../../lib/pricing";
 import { CellMoney, CellNumber, Totals } from "./fields";
 
@@ -23,7 +23,8 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
   const totals = healthLineTotals(line);
   const f = line.funding;
   const isMedical = lineKey === "medical";
-  const hsaPlans = line.plans.filter((p) => p.hsaEligible);
+  const hsaPlans = line.plans.filter(isHsaEligible);
+  const check = fundingCheck(line);
 
   return (
     <div className="space-y-6">
@@ -67,6 +68,15 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
             </div>
           ))}
         </div>
+        {check && (
+          <p data-testid={`${lineKey}-funding-check`} role={check.ok ? undefined : "alert"}
+            className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${check.ok ? "bg-canvas text-navy" : "bg-alert/5 text-alert font-semibold"}`}>
+            {check.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-orange-dark" aria-hidden /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />}
+            {check.ok
+              ? `Meets the funding rule: at least ${MIN_FUNDING_PCT}% of the lowest-cost plan (${check.lowest.name || "unnamed"}, ${usd(check.minimum)} of ${usd(check.lowest.rates.ee)} employee-only).`
+              : `Below the funding rule: the employer must contribute at least ${usd(check.minimum)} (${MIN_FUNDING_PCT}% of the lowest-cost plan, ${check.lowest.name || "unnamed"}, employee-only). Short on: ${check.short.map((x) => `${x.plan.name || "unnamed"} (${usd(x.amount)})`).join(", ")}.`}
+          </p>
+        )}
         {f.type === "percent" && f.limitPlanId && (
           <p className="text-sm text-tngray-dark">The employer pays these percentages of each plan, up to the same percentage of the limit plan's premium.</p>
         )}
@@ -90,7 +100,7 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
               </div>
               <p className="text-sm text-tngray-dark" data-testid="hsa-summary">
                 {hsaPlans.length === 0
-                  ? "No plans are marked HSA-eligible yet. Tick \"HSA-eligible\" on an HDHP plan below."
+                  ? "No HSA-eligible plans yet. Plans with HDHP in the name or type are HSA-eligible automatically."
                   : `${usd(totals.hsa)}/mo (${usd(totals.hsa * 12, 0)}/yr) across ${hsaPlans.map((p) => p.name || "unnamed plan").join(", ")}.`}
               </p>
             </>
@@ -127,8 +137,9 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
             </div>
             {isMedical && (
               <label className="flex items-center gap-2 text-sm font-semibold text-navy">
-                <input type="checkbox" aria-label={`${label} HSA-eligible`} checked={plan.hsaEligible} onChange={(e) => setPlan(plan.id, { hsaEligible: e.target.checked })} />
-                HSA-eligible
+                <input type="checkbox" aria-label={`${label} HSA-eligible`} checked={isHsaEligible(plan)}
+                  disabled={isHsaEligible(plan) && !plan.hsaEligible} onChange={(e) => setPlan(plan.id, { hsaEligible: e.target.checked })} />
+                HSA-eligible{isHsaEligible(plan) && !plan.hsaEligible && <span className="font-normal text-tngray-dark">(HDHP plans always are)</span>}
               </label>
             )}
             <div className="overflow-x-auto">

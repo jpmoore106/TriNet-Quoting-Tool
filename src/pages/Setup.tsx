@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Trash2 } from "lucide-react";
 import PageTitle from "../components/PageTitle";
+import DocumentUploads from "../components/DocumentUploads";
 import { Section, TextField, NumberField, MoneyField, labelClass, inputClass, primaryButton, secondaryButton } from "../components/form";
 import { useQuote, type PriceBreak } from "../state/QuoteContext";
 import { feeSummary, recommendedSetupFee, setupFeeSchedule, usd } from "../lib/pricing";
@@ -18,24 +18,13 @@ const MEDICAL_CARRIERS = [
   "UnitedHealthcare", "None (no current plan)",
 ];
 
-const MAX_LOGO_BYTES = 1024 * 1024;
 
 export default function Setup() {
   const { quote, update, reset } = useQuote();
   const fees = feeSummary(quote);
   const setup = setupFeeSchedule(quote);
   const recommended = recommendedSetupFee(quote);
-  const [logoError, setLogoError] = useState("");
 
-  function onLogoSelected(file: File | undefined) {
-    setLogoError("");
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return setLogoError("Please choose an image file (PNG, JPG, SVG, etc.).");
-    if (file.size > MAX_LOGO_BYTES) return setLogoError("Logo must be 1 MB or smaller.");
-    const reader = new FileReader();
-    reader.onload = () => update({ companyLogo: reader.result as string });
-    reader.readAsDataURL(file);
-  }
 
   const setBreak = (id: string, changes: Partial<PriceBreak>) =>
     update({ priceBreaks: quote.priceBreaks.map((b) => (b.id === id ? { ...b, ...changes } : b)) });
@@ -51,6 +40,7 @@ export default function Setup() {
       <PageTitle eyebrow="Quote" title="Setup" subtitle="Enter the prospect's details and pricing. Everything is saved in this browser and used on every page and output." />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DocumentUploads />
         <Section title="Company">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <TextField id="company-name" label="Company name" value={quote.companyName}
@@ -58,19 +48,6 @@ export default function Setup() {
             <TextField id="rep-name" label="Prepared by (rep name)" value={quote.repName}
               onChange={(v) => update({ repName: v })} />
           </div>
-          <div>
-            <label htmlFor="logo" className={labelClass}>Company logo</label>
-            <input id="logo" type="file" accept="image/*"
-              className="w-full text-sm text-tngray-dark file:mr-3 file:rounded-lg file:border-0 file:bg-navy file:px-3 file:py-2 file:font-semibold file:text-white hover:file:bg-navy/90"
-              onChange={(e) => { onLogoSelected(e.target.files?.[0]); e.target.value = ""; }} />
-            {logoError && <p className="mt-1 text-sm text-red-600">{logoError}</p>}
-          </div>
-          {quote.companyLogo && (
-            <div className="flex items-center gap-4">
-              <img src={quote.companyLogo} alt="Client logo" className="h-14 max-w-[220px] object-contain rounded border border-tngray-light p-2" />
-              <button type="button" className="text-sm text-red-600 underline" onClick={() => update({ companyLogo: null })}>Remove logo</button>
-            </div>
-          )}
         </Section>
 
         <Section title="Workforce & incumbents">
@@ -207,9 +184,12 @@ export default function Setup() {
           onClick={() => { if (window.confirm("Clear all quote details?")) reset(); }}>
           Clear all quote details
         </button>
-        <Link to="/outputs" className={primaryButton}>
+        <span className="flex flex-wrap items-center gap-4">
+          <Link to="/paperwork-deadlines" className="text-sm font-semibold text-navy underline">Paperwork deadlines calendar</Link>
+          <Link to="/outputs" className={primaryButton}>
           Go to outputs →
-        </Link>
+          </Link>
+        </span>
       </div>
     </div>
   );

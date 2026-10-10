@@ -9,6 +9,7 @@ export const BENEFIT_TABS = [
   { to: "/benefits/disability-life", label: "STD / LTD / Life AD&D" },
   { to: "/benefits/voluntary", label: "Voluntary" },
   { to: "/benefits/401k", label: "401(k)" },
+  { to: "/benefits/employees", label: "By employee" },
 ];
 
 export default function BenefitsLayout() {
