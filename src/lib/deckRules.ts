@@ -1,5 +1,6 @@
 import type { QuoteInputs } from "../state/QuoteContext";
 import { MASTER_SLIDES } from "../data/masterDeck";
+import { TOPIC_SLIDES } from "./callInsights";
 
 // Slides every proposal gets: opening, value and partnership, core PEO services, services model, pricing and timeline.
 const CORE = [9, 12, 13, 14, 15, 16, 18, 20, 21, 25, 26, 27, 28, 29, 31, 48, 49, 50, 52, 67, 68, 69, 70, 71];
@@ -23,6 +24,12 @@ export function recommendedSlides(q: QuoteInputs): Map<number, string> {
   if (model === "trinet" && b.voluntary.length > 0) add([65], "Voluntary benefits quoted");
   if (q.incumbentPayroll.trim()) add([32], `Moving from ${q.incumbentPayroll.trim()}: integrations`);
   if (totalWse >= 50) add([34, 51], "50 or more WSEs");
+  const ins = q.callInsights;
+  if (ins) {
+    add([10, 11], "From the call transcript");
+    const topics = ins.topics.filter((t) => model !== "oms" || t !== "benefits");
+    for (const t of topics) add(TOPIC_SLIDES[t] ?? [], `Discussed on the call: ${t.replace(/_/g, " ")}`);
+  }
   return new Map([...picks].sort((a, c) => a[0] - c[0]));
 }
 

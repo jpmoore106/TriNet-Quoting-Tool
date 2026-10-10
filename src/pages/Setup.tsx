@@ -3,6 +3,7 @@ import DeckSlides from "../components/DeckSlides";
 import { PAGE_SLIDES } from "../data/masterDeck";
 import { Plus, Trash2 } from "lucide-react";
 import PageTitle from "../components/PageTitle";
+import CallInsightsCard from "../components/CallInsightsCard";
 import DocumentUploads from "../components/DocumentUploads";
 import { Section, TextField, NumberField, MoneyField, labelClass, inputClass, primaryButton, secondaryButton } from "../components/form";
 import { useQuote, type PriceBreak } from "../state/QuoteContext";
@@ -43,6 +44,7 @@ export default function Setup() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DocumentUploads />
+        <CallInsightsCard />
         <Section title="Company">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <TextField id="company-name" label="Company name" value={quote.companyName}
