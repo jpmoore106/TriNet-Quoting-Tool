@@ -1,7 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, Eye, FolderOpen, Link2, Plus, Search, Trash2, Upload } from "lucide-react";
+import { Copy, FolderOpen, Link2, Plus, Search, Trash2, Upload } from "lucide-react";
 import AppHeader from "../../components/AppHeader";
 import PageTitle from "../../components/PageTitle";
 import { Card, CardContent } from "../../components/ui/card";
@@ -148,7 +148,7 @@ export default function Companies() {
             {team.map(([ownerId, list]) => (
               <CompanyTable key={ownerId} title={personName(people[ownerId])} subtitle={people[ownerId]?.email} rows={list} empty="No matches."
                 testId={`team-${people[ownerId]?.email ?? ownerId}`}
-                actions={(r) => <IconButton label={`View ${r.name}`} onClick={() => open(r.id)}><Eye className="h-4 w-4" /> View</IconButton>} />
+                actions={(r) => <IconButton label={`Open ${r.name}`} onClick={() => open(r.id)}><FolderOpen className="h-4 w-4" /> Open</IconButton>} />
             ))}
           </>
         )}

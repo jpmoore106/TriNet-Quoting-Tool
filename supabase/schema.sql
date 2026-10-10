@@ -3,8 +3,9 @@
 --
 -- Who can do what
 --   Reps     sign in with an @trinet.com email code; create, edit and delete their own companies and share links.
---   Managers everything a rep can, plus read-only access to the companies and share links of the reps they manage.
---   Admins   see everyone's companies and assign roles and managers on the Team page.
+--   Managers everything a rep can, plus view and edit the companies and share links of the reps they manage.
+--   Admins   view and edit everyone's companies and assign roles and managers on the Team page.
+--   Only a company's owner can delete it.
 --   Prospects sign in with an email code; read only the share links sent to their email, while not revoked or expired.
 
 -- ---------- Helpers ----------
@@ -71,6 +72,12 @@ language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.profiles where id = rep and manager_id = auth.uid())
 $$;
 
+-- True when the signed-in user may edit this rep's work: the rep themselves, their manager, or an admin.
+create or replace function public.can_edit_for(owner uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select owner = auth.uid() or public.manages(owner) or public.is_admin()
+$$;
+
 alter table public.profiles enable row level security;
 drop policy if exists "profiles: read own, team or all for admins" on public.profiles;
 create policy "profiles: read own, team or all for admins" on public.profiles for select to authenticated
@@ -113,7 +120,10 @@ drop trigger if exists companies_touch on public.companies;
 create trigger companies_touch before update on public.companies for each row execute function public.touch_updated_at();
 
 alter table public.companies enable row level security;
-grant select, insert, update, delete on public.companies to authenticated;
+grant select, insert, delete on public.companies to authenticated;
+-- Only the quote and its name can change; the owner can't be reassigned through the app.
+revoke update on public.companies from authenticated;
+grant update (name, quote) on public.companies to authenticated;
 drop policy if exists "companies: read own, team or all for admins" on public.companies;
 create policy "companies: read own, team or all for admins" on public.companies for select to authenticated
   using (owner_id = auth.uid() or public.manages(owner_id) or public.is_admin());
@@ -121,8 +131,9 @@ drop policy if exists "companies: reps create their own" on public.companies;
 create policy "companies: reps create their own" on public.companies for insert to authenticated
   with check (owner_id = auth.uid() and public.is_rep());
 drop policy if exists "companies: owners edit" on public.companies;
-create policy "companies: owners edit" on public.companies for update to authenticated
-  using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+drop policy if exists "companies: owners and their managers edit" on public.companies;
+create policy "companies: owners and their managers edit" on public.companies for update to authenticated
+  using (public.can_edit_for(owner_id)) with check (public.can_edit_for(owner_id));
 drop policy if exists "companies: owners delete" on public.companies;
 create policy "companies: owners delete" on public.companies for delete to authenticated
   using (owner_id = auth.uid());
@@ -157,6 +168,11 @@ create or replace function public.owns_company(c uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.companies where id = c and owner_id = auth.uid())
 $$;
+create or replace function public.can_edit_company(c uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.companies where id = c and public.can_edit_for(owner_id))
+$$;
+grant execute on function public.can_edit_company(uuid) to authenticated;
 create or replace function public.can_see_company(c uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.companies where id = c
@@ -172,14 +188,17 @@ drop policy if exists "shares: prospects read live links sent to them" on public
 create policy "shares: prospects read live links sent to them" on public.shares for select to authenticated
   using (public.current_email() = any (prospect_emails) and not revoked and (expires_at is null or expires_at > now()));
 drop policy if exists "shares: owners create" on public.shares;
-create policy "shares: owners create" on public.shares for insert to authenticated
-  with check (created_by = auth.uid() and public.owns_company(company_id));
+drop policy if exists "shares: team creates" on public.shares;
+create policy "shares: team creates" on public.shares for insert to authenticated
+  with check (created_by = auth.uid() and public.can_edit_company(company_id));
 drop policy if exists "shares: owners edit" on public.shares;
-create policy "shares: owners edit" on public.shares for update to authenticated
-  using (public.owns_company(company_id)) with check (public.owns_company(company_id));
+drop policy if exists "shares: team edits" on public.shares;
+create policy "shares: team edits" on public.shares for update to authenticated
+  using (public.can_edit_company(company_id)) with check (public.can_edit_company(company_id));
 drop policy if exists "shares: owners delete" on public.shares;
-create policy "shares: owners delete" on public.shares for delete to authenticated
-  using (public.owns_company(company_id));
+drop policy if exists "shares: team deletes" on public.shares;
+create policy "shares: team deletes" on public.shares for delete to authenticated
+  using (public.can_edit_company(company_id));
 
 -- ---------- Share views (when a prospect opened a link) ----------
 

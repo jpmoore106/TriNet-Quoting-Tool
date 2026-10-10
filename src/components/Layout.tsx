@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Eye } from "lucide-react";
+import { AlertTriangle, Eye, Users } from "lucide-react";
 import AppHeader from "./AppHeader";
 import { useQuote, type SaveState } from "../state/QuoteContext";
 
@@ -18,12 +18,13 @@ const SAVE_LABELS: Record<SaveState, string> = {
   saved: "All changes saved",
   saving: "Saving…",
   error: "Couldn't save. Retrying on your next change.",
+  conflict: "Not saved: changed by someone else",
   readonly: "View only",
 };
 
 export default function Layout() {
-  const { quote, readOnly, saveState } = useQuote();
-  // Read-only viewers (managers looking at a rep's company) can still use Outputs to download documents.
+  const { quote, readOnly, saveState, ownerName } = useQuote();
+  // Read-only viewers can still use Outputs to download documents.
   const lockInputs = readOnly && !useLocation().pathname.startsWith("/outputs");
   return (
     <div className="min-h-screen bg-canvas font-brand text-navy">
@@ -58,6 +59,24 @@ export default function Layout() {
           ))}
         </nav>
       </AppHeader>
+      {saveState === "conflict" && (
+        <div role="alert" className="bg-alert text-white" data-testid="conflict-banner">
+          <p className="max-w-7xl mx-auto px-4 py-2 text-sm flex flex-wrap items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+            Someone else saved changes to this company while you had it open, so your latest edits weren't saved.
+            <button type="button" onClick={() => window.location.reload()} className="underline font-semibold">Reload to see their changes</button>
+          </p>
+        </div>
+      )}
+      {!readOnly && ownerName && (
+        <div role="note" className="bg-orange/15 text-navy" data-testid="team-edit-banner">
+          <p className="max-w-7xl mx-auto px-4 py-2 text-sm flex items-center gap-2">
+            <Users className="h-4 w-4 shrink-0" aria-hidden />
+            You're working on {ownerName}'s company. Your changes save to their quote.
+            <Link to="/companies" className="underline font-semibold">Back to companies</Link>
+          </p>
+        </div>
+      )}
       {readOnly && (
         <div role="note" className="bg-orange/15 text-navy" data-testid="readonly-banner">
           <p className="max-w-7xl mx-auto px-4 py-2 text-sm flex items-center gap-2">

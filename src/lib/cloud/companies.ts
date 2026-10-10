@@ -39,9 +39,37 @@ export async function createCompany(quote: QuoteInputs = EMPTY_QUOTE): Promise<s
   return data.id;
 }
 
-export async function saveCompany(id: string, quote: QuoteInputs) {
-  const { error } = await supabase.from("companies").update({ name: companyName(quote), quote }).eq("id", id);
+// Thrown when someone else saved the company since it was opened, so this save would overwrite their changes.
+export class ConflictError extends Error {
+  constructor() {
+    super("This company was changed by someone else.");
+    this.name = "ConflictError";
+  }
+}
+
+// Saves only if the company hasn't changed since `version` (its updated_at); returns the new version.
+export async function saveCompany(id: string, quote: QuoteInputs, version: string): Promise<string> {
+  const { data, error } = await supabase
+    .from("companies")
+    .update({ name: companyName(quote), quote })
+    .eq("id", id)
+    .eq("updated_at", version)
+    .select("updated_at");
   if (error) throw error;
+  if (!data || data.length === 0) throw new ConflictError();
+  return data[0].updated_at;
+}
+
+// Owners, their managers and admins can edit a company.
+export async function canEditCompany(id: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("can_edit_company", { c: id });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function ownerOf(ownerId: string) {
+  const { data } = await supabase.from("profiles").select("email,full_name").eq("id", ownerId).maybeSingle();
+  return data ? data.full_name || data.email : "";
 }
 
 export async function deleteCompany(id: string) {

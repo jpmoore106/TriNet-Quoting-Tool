@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../state/AuthContext";
 import { QuoteProvider } from "../state/QuoteContext";
-import { getActiveCompany, getCompany, saveCompany, setActiveCompany, type Company } from "../lib/cloud/companies";
+import {
+  canEditCompany, getActiveCompany, getCompany, ownerOf, saveCompany, setActiveCompany, type Company,
+} from "../lib/cloud/companies";
 import { primaryButton } from "./form";
 
 export function Loading({ label = "Loading…" }: { label?: string }) {
@@ -41,7 +43,10 @@ export function RequireRep() {
 export function ActiveCompany() {
   const { profile } = useAuth();
   const userId = profile!.id;
-  const [state, setState] = useState<{ status: "loading" | "ready" | "none" | "error"; company?: Company }>({ status: "loading" });
+  const [state, setState] = useState<{
+    status: "loading" | "ready" | "none" | "error"; company?: Company; canEdit?: boolean; ownerName?: string;
+  }>({ status: "loading" });
+  const version = useRef("");
   const activeId = getActiveCompany(userId);
 
   useEffect(() => {
@@ -49,10 +54,16 @@ export function ActiveCompany() {
     if (!activeId) { setState({ status: "none" }); return; }
     setState({ status: "loading" });
     getCompany(activeId)
-      .then((company) => {
+      .then(async (company) => {
+        if (!company) {
+          if (live) { setActiveCompany(userId, null); setState({ status: "none" }); }
+          return;
+        }
+        const mine = company.owner_id === userId;
+        const [canEdit, ownerName] = await Promise.all([mine || canEditCompany(company.id), mine ? "" : ownerOf(company.owner_id)]);
         if (!live) return;
-        if (!company) { setActiveCompany(userId, null); setState({ status: "none" }); }
-        else setState({ status: "ready", company });
+        version.current = company.updated_at;
+        setState({ status: "ready", company, canEdit, ownerName });
       })
       .catch(() => live && setState({ status: "error" }));
     return () => { live = false; };
@@ -68,10 +79,11 @@ export function ActiveCompany() {
   }
   if (state.status === "loading" || !state.company) return <Loading label="Opening company…" />;
   const c = state.company;
-  const readOnly = c.owner_id !== userId;
+  const readOnly = !state.canEdit;
+  const save = async (q: typeof c.quote) => { version.current = await saveCompany(c.id, q, version.current); };
   return (
     <QuoteProvider key={c.id} initial={c.quote} readOnly={readOnly} companyId={c.id} ownerId={c.owner_id}
-      save={readOnly ? undefined : (q) => saveCompany(c.id, q)}>
+      ownerName={c.owner_id === userId ? "" : state.ownerName || "a team member"} save={readOnly ? undefined : save}>
       <Outlet />
     </QuoteProvider>
   );

@@ -73,7 +73,7 @@ export function normalizeQuote(saved: unknown): QuoteInputs {
   return { ...EMPTY_QUOTE, ...s, benefits: normalizeBenefits(s.benefits), deck: { ...EMPTY_QUOTE.deck, ...s.deck } };
 }
 
-export type SaveState = "saved" | "saving" | "error" | "readonly";
+export type SaveState = "saved" | "saving" | "error" | "conflict" | "readonly";
 
 type QuoteContextValue = {
   quote: QuoteInputs;
@@ -85,6 +85,7 @@ type QuoteContextValue = {
   saveState: SaveState;
   companyId: string | null; // the open company (null outside accounts, e.g. a prospect's view)
   ownerId: string | null;
+  ownerName: string; // set when the open company belongs to someone else (a manager or admin working on it)
 };
 
 const QuoteContext = createContext<QuoteContextValue | null>(null);
@@ -92,11 +93,12 @@ const QuoteContext = createContext<QuoteContextValue | null>(null);
 const SAVE_DELAY_MS = 800;
 
 // The open company's quote, shared by every page. Edits autosave to the company; read-only views never save.
-export function QuoteProvider({ children, initial, save, readOnly = false, companyId = null, ownerId = null }: {
+export function QuoteProvider({ children, initial, save, readOnly = false, companyId = null, ownerId = null, ownerName = "" }: {
   children: React.ReactNode;
   initial: QuoteInputs;
   companyId?: string | null;
   ownerId?: string | null;
+  ownerName?: string;
   save?: (q: QuoteInputs) => Promise<void>;
   readOnly?: boolean;
 }) {
@@ -110,13 +112,14 @@ export function QuoteProvider({ children, initial, save, readOnly = false, compa
 
   // Saves run one at a time, each sending the latest edits, so an older save can never land after a newer one.
   const inFlight = useRef<Promise<void> | null>(null);
+  const conflicted = useRef(false);
   const flush = useCallback(async (): Promise<void> => {
     if (inFlight.current) {
       await inFlight.current;
       return flush();
     }
     const q = pending.current;
-    if (!q || !saveRef.current) return;
+    if (!q || !saveRef.current || conflicted.current) return;
     pending.current = null;
     setSaveState("saving");
     const run = (async () => {
@@ -125,6 +128,13 @@ export function QuoteProvider({ children, initial, save, readOnly = false, compa
         lastSaved.current = q;
         if (!pending.current) setSaveState("saved");
       } catch (e) {
+        if (e instanceof Error && e.name === "ConflictError") {
+          // Someone else saved this company; stop saving so their changes aren't overwritten.
+          conflicted.current = true;
+          pending.current = null;
+          setSaveState("conflict");
+          return;
+        }
         console.error(e);
         pending.current = pending.current ?? q; // retry with the next edit
         setSaveState("error");
@@ -136,7 +146,7 @@ export function QuoteProvider({ children, initial, save, readOnly = false, compa
   }, []);
 
   useEffect(() => {
-    if (readOnly || !save || quote === lastSaved.current) return;
+    if (readOnly || !save || quote === lastSaved.current || conflicted.current) return;
     pending.current = quote;
     setSaveState("saving");
     clearTimeout(timer.current);
@@ -166,6 +176,7 @@ export function QuoteProvider({ children, initial, save, readOnly = false, compa
     saveState,
     companyId,
     ownerId,
+    ownerName,
   };
   return <QuoteContext.Provider value={value}>{children}</QuoteContext.Provider>;
 }
