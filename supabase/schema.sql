@@ -228,3 +228,36 @@ create policy "share views: prospects record their own" on public.share_views fo
 drop policy if exists "share views: team reads" on public.share_views;
 create policy "share views: team reads" on public.share_views for select to authenticated
   using (public.can_see_share(share_id));
+
+-- ---------- Invites ----------
+-- Admins add TriNet emails with a role (and manager) before people first sign in. The first sign-in creates the
+-- profile with that role and manager.
+
+create table if not exists public.invites (
+  email text primary key check (email = lower(email) and email like '%@trinet.com'),
+  full_name text not null default '',
+  role text not null default 'rep' check (role in ('rep', 'manager', 'admin')),
+  manager_id uuid references public.profiles (id) on delete set null,
+  invited_by uuid default auth.uid() references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.invites enable row level security;
+revoke all on public.invites from anon;
+grant select, insert, update, delete on public.invites to authenticated;
+drop policy if exists "invites: admins manage" on public.invites;
+create policy "invites: admins manage" on public.invites for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare inv public.invites;
+begin
+  if public.is_trinet_email(new.email) then
+    select * into inv from public.invites where email = lower(new.email);
+    insert into public.profiles (id, email, full_name, role, manager_id)
+    values (new.id, lower(new.email), coalesce(inv.full_name, ''), coalesce(inv.role, 'rep'), inv.manager_id)
+    on conflict (id) do nothing;
+  end if;
+  return new;
+end $$;
