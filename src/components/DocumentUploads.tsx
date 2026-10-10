@@ -5,22 +5,28 @@ import { Section, primaryButton, secondaryButton } from "./form";
 import { useQuote } from "../state/QuoteContext";
 import { CURRENT_LINES } from "../state/benefits";
 import type { BssResult } from "../lib/bss/parseBss";
-import { usd } from "../lib/pricing";
+import type { ChevronData } from "../lib/chevron/parseChevron";
+import { chevronChanges } from "../lib/chevron/importChevron";
+import { formatDate, usd } from "../lib/pricing";
 
 const MAX_LOGO_BYTES = 1024 * 1024;
 
 // Setup's document uploads: the BSS and Chevron proposal fill in the quote; reps can adjust everything afterwards.
 export default function DocumentUploads() {
   const bss = useBssImport();
+  const chevron = useChevronImport();
   return (
     <Section title="Documents" description="Upload the prospect's documents to fill in the quote. Files are read in your browser and never uploaded; you can adjust anything afterwards." className="lg:col-span-2">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <BssTile state={bss} />
-        <ChevronTile />
+        <ChevronTile state={chevron} />
         <LogoTile />
       </div>
       {bss.state.step === "preview" && (
         <ImportPreview result={bss.state.result} onApply={bss.apply} onCancel={bss.cancel} />
+      )}
+      {chevron.state.step === "preview" && (
+        <ChevronPreview data={chevron.state.data} onApply={chevron.apply} onCancel={chevron.cancel} />
       )}
     </Section>
   );
@@ -101,15 +107,95 @@ function BssTile({ state: { state, onFile } }: { state: ReturnType<typeof useBss
   );
 }
 
-// Chevron proposal import: waiting on a sample file to build the reader against.
-function ChevronTile() {
+type ChevronState =
+  | { step: "idle" }
+  | { step: "reading"; fileName: string }
+  | { step: "preview"; data: ChevronData }
+  | { step: "error"; message: string };
+
+// Import a TriNet Chevron proposal PDF: pricing, rep details, pay dates, cost summary, tax and workers' comp rates.
+function useChevronImport() {
+  const { quote, update } = useQuote();
+  const [state, setState] = useState<ChevronState>({ step: "idle" });
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") return setState({ step: "error", message: "Please choose the Chevron proposal PDF." });
+    setState({ step: "reading", fileName: file.name });
+    try {
+      const { readChevronFile } = await import("../lib/chevron/importChevron");
+      setState({ step: "preview", data: await readChevronFile(file) });
+    } catch (e) {
+      setState({ step: "error", message: e instanceof Error ? e.message : "Couldn't read that PDF." });
+    }
+  }
+  async function apply() {
+    if (state.step !== "preview") return;
+    update(chevronChanges(quote, state.data));
+    setState({ step: "idle" });
+  }
+  return { state, onFile, apply, cancel: () => setState({ step: "idle" }) };
+}
+
+function ChevronTile({ state: { state, onFile } }: { state: ReturnType<typeof useChevronImport> }) {
+  const { quote } = useQuote();
+  const c = quote.chevron;
   return (
     <Tile icon={FileText} title="Chevron Proposal" testId="chevron-status"
-      status="Coming soon: the Chevron proposal will fill in its sections of the quote once a sample is available to build the reader.">
-      <button type="button" disabled className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-canvas px-4 py-2 text-sm font-semibold text-tngray-dark">
-        <FileUp className="h-4 w-4" aria-hidden /> Upload proposal (coming soon)
-      </button>
+      status={
+        state.step === "reading" ? `Reading ${state.fileName}…`
+        : state.step === "error" ? <span role="alert" className="flex items-start gap-1.5 text-alert"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{state.message}</span>
+        : c ? <span className="flex items-start gap-1.5 text-navy"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-orange-dark" aria-hidden />Imported {c.fileName}{c.quoteNumber ? ` (${c.quoteNumber})` : ""}{c.validUntil ? `, valid until ${formatDate(c.validUntil)}` : ""}.</span>
+        : "The proposal PDF fills in the company, rep, service fee, implementation fee, pay dates, taxes and workers' comp."
+      }>
+      <label className={`${primaryButton} cursor-pointer`}>
+        <FileUp className="h-4 w-4" aria-hidden /> {c ? "Replace proposal" : "Upload proposal PDF"}
+        <input id="chevron-upload" type="file" accept="application/pdf,.pdf" className="sr-only"
+          onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
+      </label>
     </Tile>
+  );
+}
+
+function ChevronPreview({ data: c, onApply, onCancel }: { data: ChevronData; onApply: () => void; onCancel: () => void }) {
+  const { quote } = useQuote();
+  const changes = chevronChanges(quote, c);
+  const rows: [string, string, string][] = [];
+  const add = (label: string, before: string, after: string | undefined) => { if (after !== undefined && after !== before) rows.push([label, before || "—", after]); };
+  {
+    add("Company name", quote.companyName, changes.companyName);
+    add("Prepared by", quote.repName, changes.repName);
+    add("FT WSE", String(quote.ftWse || ""), changes.ftWse?.toString());
+    add("FT PEPM", quote.ftPepm ? usd(quote.ftPepm) : "", changes.ftPepm !== undefined ? usd(changes.ftPepm) : undefined);
+    add("PT WSE", String(quote.ptWse || ""), changes.ptWse?.toString());
+    add("PT PEPM", quote.ptPepm ? usd(quote.ptPepm) : "", changes.ptPepm !== undefined ? usd(changes.ptPepm) : undefined);
+    add("Monthly minimum fee", quote.serviceFeeMinimum ? usd(quote.serviceFeeMinimum) : "", changes.serviceFeeMinimum !== undefined ? usd(changes.serviceFeeMinimum) : undefined);
+    if (changes.setupFee) add("Setup fee", quote.setupFee.amount ? `${usd(quote.setupFee.amount)} − ${usd(quote.setupFee.discount)}` : "", `${usd(changes.setupFee.amount)} − ${usd(changes.setupFee.discount)} discount`);
+  }
+  const ft = c.serviceFees.find((f) => f.kind === "ft");
+  return (
+    <div className="rounded-xl border border-tngray-light bg-canvas p-4" data-testid="chevron-preview">
+      <p className="font-bold text-navy">Found in this proposal</p>
+      <p className="text-sm text-tngray-dark">
+        {[c.quoteNumber, c.companyName, c.validUntil && `Valid until ${formatDate(c.validUntil)}`, c.payroll.frequency && `${c.payroll.frequency} payroll`, c.payroll.firstCheck && `First TriNet check ${formatDate(c.payroll.firstCheck)}`].filter(Boolean).join(" · ")}
+      </p>
+      <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-navy">
+        {ft && <li><span className="font-semibold">Service fee:</span> {usd(ft.price)} PEPM ({usd(ft.listPrice)} list, {ft.discountPct}% discount) × {ft.quantity} FT</li>}
+        {c.implementation && <li><span className="font-semibold">Implementation:</span> {usd(c.implementation.price)} ({usd(c.implementation.listPrice)} list, {c.implementation.discountPct}% discount)</li>}
+        <li><span className="font-semibold">Annual gross wages:</span> {usd(c.annual.grossWages, 0)} · <span className="font-semibold">payroll taxes</span> {usd(c.annual.payrollTaxes, 0)}</li>
+        <li><span className="font-semibold">Tax & WC rates:</span> {c.taxes.map((t) => `${t.state} (class ${t.classCode})`).join(", ") || "none"}</li>
+      </ul>
+      {rows.length > 0 && (
+        <table className="mt-3 w-full max-w-2xl text-sm" data-testid="chevron-changes">
+          <thead><tr className="text-left text-tngray-dark"><th className="py-1 pr-3 font-semibold">Setup field</th><th className="py-1 pr-3 font-semibold">Now</th><th className="py-1 font-semibold">From proposal</th></tr></thead>
+          <tbody>{rows.map(([l, b, a]) => <tr key={l} className="border-t border-tngray-light"><td className="py-1 pr-3">{l}</td><td className="py-1 pr-3 text-tngray-dark">{b}</td><td className="py-1 font-semibold text-navy">{a}</td></tr>)}</tbody>
+        </table>
+      )}
+      <p className="mt-3 text-xs text-tngray-dark">Applying updates the fields above and adds the proposal's pay dates, cost summary, tax and workers' comp rates to the quote. You can edit everything afterwards.</p>
+      <div className="mt-3 flex gap-2">
+        <button type="button" className={primaryButton} onClick={onApply}>Apply to quote</button>
+        <button type="button" className={secondaryButton} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
   );
 }
 

@@ -82,8 +82,16 @@ export default function Setup() {
               <p className="text-xs text-tngray-dark sm:pt-7">Enter PT WSE to add a part-time rate and a blended PEPM.</p>
             )}
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <MoneyField id="fee-minimum" label="Monthly minimum fee" value={quote.serviceFeeMinimum} onChange={(v) => update({ serviceFeeMinimum: v })} />
+            {quote.chevron?.serviceFees[0] && (
+              <p className="text-sm text-tngray-dark sm:pt-7">
+                From the proposal: {usd(quote.chevron.serviceFees[0].listPrice)} list, {quote.chevron.serviceFees[0].discountPct}% discount.
+              </p>
+            )}
+          </div>
           <SummaryLine label={fees.hasPt ? "Blended PEPM" : "PEPM"} value={usd(fees.pepm)}
-            extra={fees.monthly > 0 ? `${usd(fees.monthly, 0)}/mo · ${usd(fees.annual, 0)}/yr` : undefined} />
+            extra={fees.monthly > 0 ? `${usd(fees.monthly, 0)}/mo${fees.minimumApplied ? " (monthly minimum)" : ""} · ${usd(fees.annual, 0)}/yr` : undefined} />
         </Section>
 
         <Section title="Rate cap" description="Not-to-exceed limit on the PEPM increase at the year 2 renewal. It's a ceiling, not a planned increase.">

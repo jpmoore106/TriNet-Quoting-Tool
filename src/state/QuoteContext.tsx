@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { EMPTY_BENEFITS, normalizeBenefits, type BenefitsInputs } from "./benefits";
+import type { ChevronData } from "../lib/chevron/parseChevron";
 
 export type PriceBreak = { id: string; headcount: number; pepm: number };
 
@@ -28,10 +29,12 @@ export type QuoteInputs = {
   medicalRenewalDate: string; // yyyy-MM-dd
   ftPepm: number; // Professional Service Fee per FT employee per month
   ptPepm: number; // Professional Service Fee per PT employee per month
+  serviceFeeMinimum: number; // monthly minimum Professional Service Fee (0 = none)
   priceBreaks: PriceBreak[]; // growth pricing: PEPM at a future headcount
   rateCap: RateCap;
   setupFee: SetupFee;
   benefits: BenefitsInputs;
+  chevron: ChevronData | null; // imported Chevron proposal
 };
 
 const EMPTY: QuoteInputs = {
@@ -45,10 +48,12 @@ const EMPTY: QuoteInputs = {
   medicalRenewalDate: "",
   ftPepm: 0,
   ptPepm: 0,
+  serviceFeeMinimum: 0,
   priceBreaks: [],
   rateCap: { enabled: false, percent: 0 },
   setupFee: { amount: 0, discount: 0, installments: 1, firstInvoiceDate: "", notes: "" },
   benefits: EMPTY_BENEFITS,
+  chevron: null,
 };
 
 const STORAGE_KEY = "trinet-quote-inputs";

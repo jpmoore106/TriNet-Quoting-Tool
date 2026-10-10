@@ -42,6 +42,12 @@ export default function ProfessionalServiceFees() {
             {fees.pepm > 0 ? (
               <p className="mt-2 text-white/80">
                 That's about <span className="text-white font-semibold">{usd(fees.perWorkday)}</span> per employee per workday.
+                {quote.chevron?.serviceFees.find((f) => f.kind === "ft") && (
+                  <span data-testid="list-discount" className="block mt-1">
+                    List price {usd(quote.chevron.serviceFees.find((f) => f.kind === "ft")!.listPrice)} PEPM: you save {quote.chevron.serviceFees.find((f) => f.kind === "ft")!.discountPct}%.
+                  </span>
+                )}
+                {fees.minimumApplied && <span className="block mt-1">Includes the {usd(quote.serviceFeeMinimum)} monthly minimum.</span>}
               </p>
             ) : (
               <p className="mt-2 text-white/80">

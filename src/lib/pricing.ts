@@ -15,11 +15,14 @@ export function feeSummary(q: QuoteInputs) {
   const totalWse = ft + pt;
   const ftMonthly = ft * (q.ftPepm || 0);
   const ptMonthly = pt > 0 ? pt * (q.ptPepm || 0) : 0;
-  const monthly = ftMonthly + ptMonthly;
+  // The Professional Service Fee is subject to a monthly minimum, when one is quoted.
+  const calculated = ftMonthly + ptMonthly;
+  const minimumApplied = totalWse > 0 && calculated > 0 && calculated < (q.serviceFeeMinimum || 0);
+  const monthly = minimumApplied ? q.serviceFeeMinimum : calculated;
   // Blended PEPM: total monthly fee spread across every WSE (FT and PT).
   const pepm = totalWse > 0 ? monthly / totalWse : q.ftPepm || 0;
   return {
-    ft, pt, totalWse, hasPt: pt > 0,
+    ft, pt, totalWse, hasPt: pt > 0, calculated, minimumApplied,
     ftMonthly, ptMonthly, monthly, annual: monthly * 12, pepm,
     perWorkday: (pepm * 12) / WORKDAYS_PER_YEAR,
     ftShare: monthly > 0 ? (ftMonthly / monthly) * 100 : 0,

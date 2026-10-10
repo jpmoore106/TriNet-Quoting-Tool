@@ -197,13 +197,21 @@ type Period = {
   deadline?: Date;
 };
 
+// Map a proposal's pay frequency ("Semi-Monthly", "Bi-Weekly", ...) to this calendar's options.
+function frequencyOption(f?: string) {
+  const k = (f ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  return ({ weekly: "weekly", biweekly: "bi-weekly", semimonthly: "semi monthly", monthly: "monthly" } as Record<string, string>)[k];
+}
+
 export default function PaperworkDeadlines() {
-  const [frequency, setFrequency] = useState("bi-weekly");
-  const [payBegin, setPayBegin] = useState<string>(format(new Date(), "yyyy-MM-dd"));
-  const [payEnd, setPayEnd] = useState<string>(format(addDays(new Date(), 13), "yyyy-MM-dd"));
-  const [firstCheck, setFirstCheck] = useState<string>(format(addDays(new Date(), 20), "yyyy-MM-dd"));
-  const [benefitsStart, setBenefitsStart] = useState<string>(format(addDays(new Date(), 30), "yyyy-MM-dd"));
-  const { totalWse } = useQuote();
+  const { quote, totalWse } = useQuote();
+  // Start from the imported Chevron proposal's TriNet pay dates and the benefits start date, when available.
+  const pay = quote.chevron?.payroll;
+  const [frequency, setFrequency] = useState(frequencyOption(pay?.frequency) ?? "bi-weekly");
+  const [payBegin, setPayBegin] = useState<string>(pay?.trinetPayBegin || format(new Date(), "yyyy-MM-dd"));
+  const [payEnd, setPayEnd] = useState<string>(pay?.trinetPayEnd || format(addDays(new Date(), 13), "yyyy-MM-dd"));
+  const [firstCheck, setFirstCheck] = useState<string>(pay?.firstCheck || format(addDays(new Date(), 20), "yyyy-MM-dd"));
+  const [benefitsStart, setBenefitsStart] = useState<string>(quote.benefits.effectiveDate || format(addDays(new Date(), 30), "yyyy-MM-dd"));
   // Combined WSE count from the Setup page, if entered.
   const [employeeCount, setEmployeeCount] = useState<number>(totalWse > 0 ? totalWse : 25);
   const [serviceModel, setServiceModel] = useState<ServiceModel>("Core");
