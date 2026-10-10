@@ -1,4 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
+import DeckSlides from "../../components/DeckSlides";
+import { PAGE_SLIDES } from "../../data/masterDeck";
 import { Section, inputClass, labelClass, secondaryButton } from "../../components/form";
 import { useQuote } from "../../state/QuoteContext";
 import type { VoluntaryProduct } from "../../state/benefits";
@@ -52,6 +54,7 @@ export default function Voluntary() {
         </button>
         {products.length === 0 && <p className={`${labelClass} font-normal text-tngray-dark`}>No voluntary products yet.</p>}
       </Section>
+      <DeckSlides slides={PAGE_SLIDES.voluntary} intro="TriNet's voluntary benefits carriers and products." />
     </div>
   );
 }

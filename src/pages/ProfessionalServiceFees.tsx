@@ -1,4 +1,6 @@
 import type React from "react";
+import DeckSlides from "../components/DeckSlides";
+import { PAGE_SLIDES } from "../data/masterDeck";
 import { Link } from "react-router-dom";
 import { Check, Pencil } from "lucide-react";
 import growthIcon from "../assets/icons/growth.png";
@@ -197,6 +199,9 @@ export default function ProfessionalServiceFees() {
             </CardContent>
           </Card>
         ))}
+      </div>
+      <div className="mt-6">
+        <DeckSlides slides={PAGE_SLIDES.fees} intro="Present the fee with TriNet's billing transparency story. The pricing slide fills in from this quote." />
       </div>
     </div>
   );

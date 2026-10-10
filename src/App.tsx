@@ -16,6 +16,7 @@ import Retirement from "./pages/benefits/Retirement";
 import Employees from "./pages/benefits/Employees";
 import Taxes from "./pages/Taxes";
 import WorkersComp from "./pages/WorkersComp";
+import { PAGE_SLIDES } from "./data/masterDeck";
 
 export default function App() {
   return (
@@ -36,8 +37,8 @@ export default function App() {
             <Route path="401k" element={<Retirement />} />
             <Route path="employees" element={<Employees />} />
           </Route>
-          <Route path="competitive-analysis" element={<ComingSoon title="Competitive Analysis" description="Compare TriNet with the incumbent providers." />} />
-          <Route path="vroi" element={<ComingSoon title="vROI" description="Value and return on investment." />} />
+          <Route path="competitive-analysis" element={<ComingSoon title="Competitive Analysis" description="Compare TriNet with the incumbent providers." slides={PAGE_SLIDES.competitive} />} />
+          <Route path="vroi" element={<ComingSoon title="vROI" description="Value and return on investment." slides={PAGE_SLIDES.vroi} />} />
           <Route path="workers-comp" element={<WorkersComp />} />
           <Route path="taxes" element={<Taxes />} />
           <Route path="wc-breakdown" element={<Navigate to="/workers-comp" replace />} />

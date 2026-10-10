@@ -7,6 +7,7 @@ import PageTitle from "../components/PageTitle";
 import { useQuote } from "../state/QuoteContext";
 import { feeSummary } from "../lib/pricing";
 import { primaryButton } from "../components/form";
+import DeckBuilder from "../components/DeckBuilder";
 
 export default function Outputs() {
   const { quote } = useQuote();
@@ -55,8 +56,8 @@ export default function Outputs() {
           </Link>
         </OutputCard>
 
-        <OutputCard icon={Presentation} title="Proposal deck"
-          description="A branded PowerPoint built from the quote, with the client's logo, fees, what's included, price breaks, rate cap, setup fee and next steps. Edit it further in PowerPoint or Google Slides.">
+        <OutputCard icon={Presentation} title="Quote summary slides"
+          description="A short branded PowerPoint built from the quote, with the client's logo, fees, what's included, price breaks, rate cap, setup fee and next steps. Edit it further in PowerPoint or Google Slides.">
           <button type="button" onClick={downloadDeck} disabled={deckState === "working"}
             className={primaryButton}>
             <Download className="h-4 w-4" /> {deckState === "working" ? "Building deck…" : "Download PowerPoint"}
@@ -68,6 +69,10 @@ export default function Outputs() {
           description="The value and return on investment of moving to TriNet. Available once the vROI calculator is built.">
           <span className="inline-flex items-center rounded-lg bg-canvas px-4 py-2 text-sm font-medium text-tngray-dark">Coming soon</span>
         </OutputCard>
+      </div>
+
+      <div className="mt-6">
+        <DeckBuilder />
       </div>
     </div>
   );

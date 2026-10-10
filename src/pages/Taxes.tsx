@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import DeckSlides from "../components/DeckSlides";
+import { PAGE_SLIDES } from "../data/masterDeck";
 import { Card, CardContent } from "../components/ui/card";
 import PageTitle from "../components/PageTitle";
 import { useQuote } from "../state/QuoteContext";
@@ -64,6 +66,7 @@ export default function Taxes() {
           </Card>
         </>
       )}
+      <DeckSlides slides={PAGE_SLIDES.taxes} intro="Show how TriNet handles payroll and payroll taxes." />
     </div>
   );
 }
