@@ -85,7 +85,22 @@ export type Retirement = {
 export type CostSplit = { employer: number; employee: number };
 export const CURRENT_LINES = ["medical", "dental", "vision", "life", "disability"] as const;
 export type CurrentLine = (typeof CURRENT_LINES)[number];
-export type CurrentCosts = { noCurrentMedical: boolean } & Record<CurrentLine, CostSplit>;
+export type CurrentCosts = {
+  noCurrentMedical: boolean;
+  anticipatedRenewalPct: number; // expected increase at the current medical renewal
+} & Record<CurrentLine, CostSplit>;
+
+// One employee from an imported BSS census: tier, current medical plan/cost and proposed TriNet plans.
+export type CensusEmployee = {
+  id: string;
+  name: string;
+  state: string;
+  tier: Tier;
+  current: { plan: string; employer: number; employee: number } | null; // current medical
+  medical: string; // proposed TriNet plan names ("" = not enrolled)
+  dental: string;
+  vision: string;
+};
 
 export type QuoteSource = {
   fileName: string;
@@ -106,6 +121,7 @@ export type BenefitsInputs = {
   voluntary: VoluntaryProduct[];
   retirement: Retirement;
   current: CurrentCosts;
+  census: CensusEmployee[];
   source: QuoteSource | null;
 };
 
@@ -134,9 +150,13 @@ export const EMPTY_BENEFITS: BenefitsInputs = {
     provider: "", eligibleEmployees: 0, eligiblePayroll: 0, participationPct: 0, avgDeferralPct: 0,
     matchPct: 0, matchUpToPct: 0, adminFeeAnnual: 0, perParticipantFeeAnnual: 0, employerPaysFees: true,
   },
-  current: { noCurrentMedical: false, medical: split(), dental: split(), vision: split(), life: split(), disability: split() },
+  current: { noCurrentMedical: false, anticipatedRenewalPct: 0, medical: split(), dental: split(), vision: split(), life: split(), disability: split() },
+  census: [],
   source: null,
 };
+
+// Plans denoted HDHP are always HSA-eligible; other plans can be marked eligible by hand.
+export const isHsaEligible = (p: HealthPlan) => p.hsaEligible || /\bHDHP\b/i.test(`${p.name} ${p.planType}`);
 
 export const newHealthPlan = (): HealthPlan => ({
   id: crypto.randomUUID(), name: "", carrier: "", planType: "", hsaEligible: false, rates: zeroTiers(), enrollment: zeroTiers(),
@@ -167,5 +187,6 @@ export function normalizeBenefits(saved: Partial<BenefitsInputs> | undefined): B
     vision: line(saved?.vision, EMPTY_BENEFITS.vision),
     risk: emptyRisk().map((d) => ({ ...d, ...(saved?.risk?.find((r) => r.id === d.id) ?? {}) })),
     current: { ...EMPTY_BENEFITS.current, ...saved?.current },
+    census: saved?.census ?? [],
   };
 }

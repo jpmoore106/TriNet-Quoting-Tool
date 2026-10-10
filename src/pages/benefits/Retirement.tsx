@@ -1,4 +1,6 @@
-import { Section, TextField, NumberField, MoneyField } from "../../components/form";
+import { Section, TextField, NumberField, MoneyField, secondaryButton } from "../../components/form";
+import CollateralCard from "../../components/CollateralCard";
+import { RETIREMENT_COLLATERAL, TRINET_401K_DEFAULTS } from "../../data/collateral";
 import { useQuote } from "../../state/QuoteContext";
 import type { Retirement as RetirementInputs } from "../../state/benefits";
 import { retirementCosts } from "../../lib/benefits";
@@ -30,6 +32,7 @@ export default function Retirement() {
           </div>
         </Section>
         <Section title="Employer match & fees" description="Example: 100% match up to 4% of pay.">
+          <button type="button" className={secondaryButton} onClick={() => set(TRINET_401K_DEFAULTS)}>Use TriNet 401(k) Plan fees</button>
           <div className="grid grid-cols-2 gap-4">
             <NumberField id="k-match-pct" label="Match % of deferrals" suffix="%" max={200} value={r.matchPct} onChange={(v) => set({ matchPct: v })} />
             <NumberField id="k-match-cap" label="Up to % of pay" suffix="%" step={0.5} max={100} value={r.matchUpToPct} onChange={(v) => set({ matchUpToPct: v })} />
@@ -45,6 +48,7 @@ export default function Retirement() {
           )}
         </Section>
       </div>
+      <CollateralCard collateral={RETIREMENT_COLLATERAL} />
     </div>
   );
 }

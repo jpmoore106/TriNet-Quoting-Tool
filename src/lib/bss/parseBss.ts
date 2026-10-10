@@ -1,8 +1,8 @@
 // Parses a TriNet Benefit Strategy Summary (BSS) PDF, already split into text lines per page.
-// Employee-level census rows are aggregated into plans (rates × enrollment by tier); employee names are not kept.
+// Employee-level census rows are aggregated into plans (rates × enrollment by tier) and kept per employee.
 import {
   TIERS, zeroTiers, percentFunding, emptyRisk,
-  type CostSplit, type CurrentCosts, type FundingStrategy, type HealthPlan, type RiskCoverage, type Tier, type TierValues,
+  type CensusEmployee, type CostSplit, type CurrentCosts, type FundingStrategy, type HealthPlan, type RiskCoverage, type Tier, type TierValues,
 } from "../../state/benefits";
 
 const MONEY = /\$([\d,]+\.\d{2})/g;
@@ -19,6 +19,7 @@ export type ParsedLine = {
   proposedTotal: CostSplit | null; // "Proposed Group Total" from the report
   currentTotal: CostSplit | null;
   employees: number;
+  rows: { name: string; state: string; tier: Tier; plan: string; current: CensusEmployee["current"] }[];
 };
 
 export type BssResult = {
@@ -31,7 +32,10 @@ export type BssResult = {
   lines: Record<BssLine, ParsedLine>;
   risk: RiskCoverage[];
   disabilityPackage: string;
-  current: Omit<CurrentCosts, "noCurrentMedical">;
+  current: Omit<CurrentCosts, "noCurrentMedical" | "anticipatedRenewalPct">;
+  census: CensusEmployee[];
+  companyName: string;
+  employeeCount: number;
   trinetSummary: Partial<Record<"medical" | "dental" | "vision" | "life" | "disability", CostSplit>>;
   checks: { label: string; expected: number; actual: number; ok: boolean }[];
   warnings: string[];
@@ -117,6 +121,7 @@ function parseCensus(pages: string[][], line: BssLine, table: { name: string; ra
   let proposedTotal: CostSplit | null = null;
   let currentTotal: CostSplit | null = null;
   let employees = 0;
+  const rows: ParsedLine["rows"] = [];
   const title = new RegExp(`^Employee-Level Cost Comparison(: )?${line}`, "i");
   for (const page of pages) {
     const isSection = page.some((l, i) => title.test(l) || (l === "Employee-Level Cost Comparison" && page[i + 1]?.toLowerCase() === line));
@@ -137,7 +142,12 @@ function parseCensus(pages: string[][], line: BssLine, table: { name: string; ra
       employees++;
       const prop = groups[hasCurrent && groups.length > 1 ? 1 : 0];
       addRow(proposed, prop[1], tier, money(prop[4]));
-      if (hasCurrent && groups.length > 1) addRow(current, groups[0][1], tier, money(groups[0][4]));
+      const cur = hasCurrent && groups.length > 1 ? groups[0] : null;
+      if (cur) addRow(current, cur[1], tier, money(cur[4]));
+      rows.push({
+        name: m[1].trim(), state: m[2], tier, plan: prop[1].trim(),
+        current: cur ? { plan: cur[1].trim(), employer: money(cur[2]), employee: money(cur[3]) } : null,
+      });
     }
   }
   for (const a of [...proposed.values(), ...current.values()]) fillRates(a, table);
@@ -145,7 +155,7 @@ function parseCensus(pages: string[][], line: BssLine, table: { name: string; ra
   return {
     plans: [...proposed.values()].map((a) => toPlan(a, carrier)),
     currentPlans: [...current.values()].map((a) => toPlan(a, "")),
-    funding, proposedTotal, currentTotal, employees,
+    funding, proposedTotal, currentTotal, employees, rows,
   };
 }
 
@@ -232,7 +242,31 @@ export function parseBss(pages: string[][]): BssResult {
     });
   });
 
+  // One record per employee across medical, dental and vision (matched on name and state).
+  const people = new Map<string, CensusEmployee>();
+  (["medical", "dental", "vision"] as const).forEach((k) => {
+    const seen = new Map<string, number>();
+    for (const r of lines[k].rows) {
+      // Same name and state can belong to two people; rows are listed in the same order on every census page.
+      const base = `${r.name}|${r.state}`;
+      const n = (seen.get(base) ?? 0) + 1;
+      seen.set(base, n);
+      const key = `${base}|${n}`;
+      const e = people.get(key) ?? { id: crypto.randomUUID(), name: r.name, state: r.state, tier: r.tier, current: null, medical: "", dental: "", vision: "" };
+      e[k] = r.plan;
+      if (k === "medical") { e.tier = r.tier; e.current = r.current; }
+      people.set(key, e);
+    }
+  });
+  const census = [...people.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const title = all.findIndex((l) => l.startsWith("Benefit Strategy Summary for"));
+  const companyName = title >= 0
+    ? (all[title].replace("Benefit Strategy Summary for", "").trim() || (!/Plan Year|Contingent/.test(all[title + 1] ?? "") ? all[title + 1] ?? "" : "")).trim()
+    : "";
+  const employeeCount = Math.max(census.length, ...risk.map((c) => c.employees));
+
   return {
+    census, companyName, employeeCount,
     effectiveDate: eff ? `${eff[3]}-${eff[1]}-${eff[2]}` : "",
     planYear: text.match(/Plan Year ?(\d{2}\/\d{2}\/\d{4} - \d{2}\/\d{2}\/\d{4})/)?.[1] ?? "",
     proposalNumber: footer.match(/Proposal Number: ([\w-]+)/)?.[1] ?? "",

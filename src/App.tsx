@@ -13,6 +13,7 @@ import HealthLinePage from "./pages/benefits/HealthLinePage";
 import DisabilityLife from "./pages/benefits/DisabilityLife";
 import Voluntary from "./pages/benefits/Voluntary";
 import Retirement from "./pages/benefits/Retirement";
+import Employees from "./pages/benefits/Employees";
 
 export default function App() {
   return (
@@ -31,11 +32,14 @@ export default function App() {
             <Route path="disability-life" element={<DisabilityLife />} />
             <Route path="voluntary" element={<Voluntary />} />
             <Route path="401k" element={<Retirement />} />
+            <Route path="employees" element={<Employees />} />
           </Route>
           <Route path="competitive-analysis" element={<ComingSoon title="Competitive Analysis" description="Compare TriNet with the incumbent providers." />} />
           <Route path="vroi" element={<ComingSoon title="vROI" description="Value and return on investment." />} />
-          <Route path="wc-breakdown" element={<ComingSoon title="WC Breakdown" description="Workers' compensation cost breakdown." />} />
-          <Route path="suta" element={<ComingSoon title="SUTA" description="State unemployment tax analysis." />} />
+          <Route path="workers-comp" element={<ComingSoon title="Worker's Comp & EPLI" description="Workers' compensation and employment practices liability coverage and costs." />} />
+          <Route path="taxes" element={<ComingSoon title="Taxes" description="State unemployment (SUTA) and other employer payroll taxes." />} />
+          <Route path="wc-breakdown" element={<Navigate to="/workers-comp" replace />} />
+          <Route path="suta" element={<Navigate to="/taxes" replace />} />
           <Route path="paperwork-deadlines" element={<PaperworkDeadlines />} />
           <Route path="outputs" element={<Outputs />} />
           <Route path="*" element={<Navigate to="/" replace />} />

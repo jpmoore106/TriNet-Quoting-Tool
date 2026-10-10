@@ -31,7 +31,8 @@ export function applyBss(b: BenefitsInputs, r: BssResult, fileName: string): Ben
     dental: line("dental"),
     vision: line("vision"),
     risk: r.risk,
-    current: { ...r.current, noCurrentMedical: r.lines.medical.currentPlans.length === 0 && r.current.medical.employer + r.current.medical.employee === 0 },
+    census: r.census,
+    current: { ...r.current, anticipatedRenewalPct: b.current.anticipatedRenewalPct, noCurrentMedical: r.lines.medical.currentPlans.length === 0 && r.current.medical.employer + r.current.medical.employee === 0 },
     source: {
       fileName,
       importedAt: new Date().toISOString(),

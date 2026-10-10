@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, AlertTriangle, FileUp } from "lucide-react";
 import { Card, CardContent } from "../../components/ui/card";
-import { Section, TextField, primaryButton, secondaryButton } from "../../components/form";
+import { Section, TextField } from "../../components/form";
 import { useQuote } from "../../state/QuoteContext";
-import { benefitsSummary, currentVsTrinet, type LineSummary } from "../../lib/benefits";
-import { CURRENT_LINES, type CostSplit, type CurrentLine } from "../../state/benefits";
-import type { BssResult } from "../../lib/bss/parseBss";
-import { CellMoney } from "./fields";
-import { feeSummary, usd } from "../../lib/pricing";
+import { MIN_FUNDING_PCT, benefitsSummary, currentVsTrinet, fundingCheck, type LineSummary } from "../../lib/benefits";
+import type { CostSplit, CurrentLine } from "../../state/benefits";
+import { CellMoney, CellNumber } from "./fields";
+import { feeSummary, formatDate, usd } from "../../lib/pricing";
 
 // Chart colors: Violet (secondary palette) + TriNet Orange; validated for lightness, CVD separation and contrast.
 const EMPLOYER = "#7F3ED6";
@@ -22,7 +20,8 @@ export default function BenefitsSummary() {
 
   return (
     <div className="space-y-6">
-      <ImportCard />
+      <ImportStatus />
+      <FundingAlerts />
       <section aria-label="Benefits financial summary" className="rounded-2xl bg-navy text-white p-6 sm:p-8">
         <p className="text-sm font-semibold uppercase tracking-wider text-orange">Total monthly investment with TriNet</p>
         <p data-testid="total-investment" className="mt-1 text-5xl font-bold">{usd(totalInvestment, 0)}</p>
@@ -148,7 +147,7 @@ function CostChart({ lines }: { lines: LineSummary[] }) {
 function Comparison() {
   const { quote, updateBenefits } = useQuote();
   const c = quote.benefits.current;
-  const cmp = currentVsTrinet(quote.benefits);
+  const cmp = currentVsTrinet(quote.benefits, quote.medicalRenewalDate);
   const setCurrent = (key: CurrentLine, changes: Partial<CostSplit>) =>
     updateBenefits({ current: { ...c, [key]: { ...c[key], ...changes } } });
   const total = (s: CostSplit) => s.employer + s.employee;
@@ -168,6 +167,28 @@ function Comparison() {
             No current medical plan (new group)
           </label>
         </div>
+        {!c.noCurrentMedical && (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4 items-start rounded-xl bg-canvas p-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-navy" htmlFor="anticipated-renewal">Anticipated medical renewal</label>
+              <div id="anticipated-renewal-wrap">
+                <CellNumber label="Anticipated medical renewal %" value={c.anticipatedRenewalPct} suffix="%" step={0.5}
+                  onChange={(v) => updateBenefits({ current: { ...c, anticipatedRenewalPct: Math.min(100, v) } })} />
+              </div>
+            </div>
+            <p className="text-sm text-navy" data-testid="renewal-note">
+              {!quote.medicalRenewalDate || !quote.benefits.effectiveDate ? (
+                <>Needs the current medical renewal date (on <Link to="/" className="underline text-orange-dark">Setup</Link>) and the benefits effective date (Plan year, above).</>
+              ) : cmp.renewal ? (
+                <>
+                  TriNet starts {formatDate(quote.benefits.effectiveDate)} and renews {cmp.renewal.trinetRenewal}: a {cmp.renewal.windowMonths}-month rate period
+                  (TriNet medical renews quarterly). The current plan renews {cmp.renewal.currentRenewal}, so {cmp.renewal.increaseMonths} of those months
+                  {c.anticipatedRenewalPct ? <> carry the {c.anticipatedRenewalPct}% increase: current medical is shown at <strong>{((cmp.factor - 1) * 100).toFixed(2)}%</strong> above today's cost, averaged over the period.</> : " would carry an increase. Enter the anticipated renewal % to apply it."}
+                </>
+              ) : null}
+            </p>
+          </div>
+        )}
         <table className="mt-4 w-full min-w-[760px] text-sm" data-testid="comparison-table">
           <thead>
             <tr className="text-left text-tngray-dark">
@@ -202,7 +223,10 @@ function Comparison() {
                       <td className="py-2 pr-3"><CellMoney label={`Current ${r.label} employee`} value={c[r.key].employee} onChange={(v) => setCurrent(r.key, { employee: v })} /></td>
                     </>
                   )}
-                  <td className="py-2 pr-3 text-right">{usd(total(r.current))}</td>
+                  <td className="py-2 pr-3 text-right" data-testid={`cmp-current-${r.key}`}>
+                    {usd(total(r.current))}
+                    {r.key === "medical" && cmp.factor > 1 && <span className="block text-xs text-tngray-dark">incl. anticipated renewal</span>}
+                  </td>
                   <td className="py-2 pr-3 text-right">{usd(r.trinet.employer)}</td>
                   <td className="py-2 pr-3 text-right">{usd(r.trinet.employee)}</td>
                   <td className="py-2 pr-3 text-right font-semibold">{usd(total(r.trinet))}</td>
@@ -232,108 +256,36 @@ function Comparison() {
 
 const signed = (n: number) => `${n >= 0 ? "+" : "−"}${usd(Math.abs(n))}`;
 
-type ImportState =
-  | { step: "idle" }
-  | { step: "reading"; fileName: string }
-  | { step: "preview"; fileName: string; result: BssResult }
-  | { step: "error"; message: string };
-
-// Import a TriNet Benefit Strategy Summary (BSS) PDF. The file is read in the browser and never uploaded.
-function ImportCard() {
-  const { quote, update } = useQuote();
-  const [state, setState] = useState<ImportState>({ step: "idle" });
-  const src = quote.benefits.source;
-
-  async function onFile(file: File | undefined) {
-    if (!file) return;
-    if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") return setState({ step: "error", message: "Please choose the BSS PDF." });
-    setState({ step: "reading", fileName: file.name });
-    try {
-      const { readBssFile } = await import("../../lib/bss/importBss");
-      setState({ step: "preview", fileName: file.name, result: await readBssFile(file) });
-    } catch (e) {
-      setState({ step: "error", message: e instanceof Error ? e.message : "Couldn't read that PDF." });
-    }
-  }
-
-  async function apply(result: BssResult, fileName: string) {
-    const { applyBss } = await import("../../lib/bss/importBss");
-    update({ benefits: applyBss(quote.benefits, result, fileName) });
-    setState({ step: "idle" });
-  }
-
+// Where the benefits data came from; uploads live on the Setup page.
+function ImportStatus() {
+  const { quote } = useQuote();
+  const s = quote.benefits.source;
   return (
-    <Card>
-      <CardContent className="p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-canvas text-navy"><FileUp className="h-5 w-5" aria-hidden /></span>
-            <div>
-              <h3 className="text-lg font-bold text-navy">Import a Benefit Strategy Summary</h3>
-              <p className="text-sm text-tngray-dark" data-testid="import-status">
-                {src
-                  ? `Imported ${src.fileName}${src.proposalNumber ? ` (${src.proposalNumber})` : ""} on ${new Date(src.importedAt).toLocaleDateString()}.`
-                  : "Upload the BSS PDF to fill in plans, rates, enrollment, funding and current costs. It's read in your browser and never uploaded."}
-              </p>
-            </div>
-          </div>
-          <label className={`${primaryButton} cursor-pointer`}>
-            <FileUp className="h-4 w-4" aria-hidden /> {src ? "Import another BSS" : "Upload BSS PDF"}
-            <input id="bss-upload" type="file" accept="application/pdf,.pdf" className="sr-only"
-              onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
-          </label>
-        </div>
-
-        {state.step === "reading" && <p className="mt-4 text-sm text-navy">Reading {state.fileName}…</p>}
-        {state.step === "error" && (
-          <p role="alert" className="mt-4 flex items-center gap-2 text-sm text-alert"><AlertTriangle className="h-4 w-4" aria-hidden />{state.message}</p>
-        )}
-        {state.step === "preview" && <ImportPreview result={state.result} onApply={() => apply(state.result, state.fileName)} onCancel={() => setState({ step: "idle" })} />}
-      </CardContent>
-    </Card>
+    <p className="text-sm text-tngray-dark" data-testid="benefits-source">
+      {s ? `Imported from ${s.fileName}${s.proposalNumber ? ` (${s.proposalNumber})` : ""}${s.strategy ? ` · ${s.strategy}` : ""}. ` : "Enter plans by hand on each tab, or "}
+      <Link to="/" className="underline text-orange-dark">{s ? "Replace it on the Setup page" : "upload a Benefit Strategy Summary on the Setup page"}</Link>.
+    </p>
   );
 }
 
-function ImportPreview({ result: r, onApply, onCancel }: { result: BssResult; onApply: () => void; onCancel: () => void }) {
-  const lines = (["medical", "dental", "vision"] as const).map((k) => {
-    const l = r.lines[k];
-    const enrolled = l.plans.reduce((a, p) => a + p.enrollment.ee + p.enrollment.es + p.enrollment.ec + p.enrollment.ef, 0);
-    return { k, label: k[0].toUpperCase() + k.slice(1), plans: l.plans.length, enrolled, funding: l.funding };
-  });
-  const risk = r.risk.filter((c) => c.enabled);
-  const currentTotal = CURRENT_LINES.reduce((a, k) => a + r.current[k].employer + r.current[k].employee, 0);
+// Funding rule across medical, dental and vision: at least 50% of the lowest-cost plan.
+function FundingAlerts() {
+  const { quote } = useQuote();
+  const failing = (["medical", "dental", "vision"] as const)
+    .map((k) => ({ k, check: fundingCheck(quote.benefits[k]) }))
+    .filter((x) => x.check && !x.check.ok);
+  if (failing.length === 0) return null;
   return (
-    <div className="mt-5 rounded-xl border border-tngray-light bg-canvas p-4" data-testid="import-preview">
-      <p className="font-bold text-navy">Found in this BSS</p>
-      <p className="text-sm text-tngray-dark">
-        {[r.proposalNumber && `Proposal ${r.proposalNumber}`, r.strategy, r.primaryCarrier, r.planYear && `Plan year ${r.planYear}`, r.states && `States: ${r.states}`].filter(Boolean).join(" · ")}
-      </p>
-      <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-navy">
-        {lines.map((l) => (
-          <li key={l.k}>
-            <span className="font-semibold">{l.label}:</span> {l.plans} plan{l.plans === 1 ? "" : "s"}, {l.enrolled} enrolled
-            {l.funding && `, ${l.funding.type === "percent" ? `${l.funding.pct.ee}% employer-paid (EE)` : "flat $ funding"}`}
+    <div role="alert" data-testid="funding-alerts" className="rounded-xl border border-alert bg-alert/5 p-4 text-sm text-alert">
+      <p className="font-bold">Funding below the {MIN_FUNDING_PCT}% minimum</p>
+      <ul className="mt-1 list-disc pl-5">
+        {failing.map(({ k, check }) => (
+          <li key={k}>
+            <Link to={`/benefits/${k}`} className="underline">{k[0].toUpperCase() + k.slice(1)}</Link>: the employer must contribute at least {usd(check!.minimum)} per employee
+            ({MIN_FUNDING_PCT}% of {check!.lowest.name || "the lowest-cost plan"}, employee-only).
           </li>
         ))}
-        <li><span className="font-semibold">Disability & life:</span> {risk.length ? risk.map((c) => c.benefit).join(", ") : "none"}</li>
-        <li><span className="font-semibold">Current monthly cost:</span> {usd(currentTotal)}{r.lines.medical.currentPlans.length ? ` (${r.lines.medical.currentPlans.length} current medical plans)` : ""}</li>
       </ul>
-      <ul className="mt-3 space-y-1 text-sm">
-        {r.checks.map((c) => (
-          <li key={c.label} className={`flex items-center gap-2 ${c.ok ? "text-navy" : "text-alert"}`}>
-            {c.ok ? <CheckCircle2 className="h-4 w-4 text-orange-dark" aria-hidden /> : <AlertTriangle className="h-4 w-4" aria-hidden />}
-            {c.label}: {usd(c.actual)} {c.ok ? "matches the report" : `vs. ${usd(c.expected)} in the report`}
-          </li>
-        ))}
-        {r.warnings.map((w) => (
-          <li key={w} className="flex items-center gap-2 text-tngray-dark"><AlertTriangle className="h-4 w-4" aria-hidden />{w}</li>
-        ))}
-      </ul>
-      <p className="mt-3 text-xs text-tngray-dark">Applying replaces medical, dental, vision, disability/life and current costs. Voluntary and 401(k) are kept. Employee names aren't saved.</p>
-      <div className="mt-3 flex gap-2">
-        <button type="button" className={primaryButton} onClick={onApply}>Apply to quote</button>
-        <button type="button" className={secondaryButton} onClick={onCancel}>Cancel</button>
-      </div>
     </div>
   );
 }

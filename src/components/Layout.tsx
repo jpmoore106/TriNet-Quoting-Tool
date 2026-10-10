@@ -6,11 +6,10 @@ export const NAV_ITEMS = [
   { to: "/", label: "Setup" },
   { to: "/professional-service-fees", label: "Professional Service Fees" },
   { to: "/benefits", label: "Benefits" },
-  { to: "/competitive-analysis", label: "Competitive Analysis" },
+  { to: "/workers-comp", label: "Worker's Comp & EPLI" },
+  { to: "/taxes", label: "Taxes" },
   { to: "/vroi", label: "vROI" },
-  { to: "/wc-breakdown", label: "WC Breakdown" },
-  { to: "/suta", label: "SUTA" },
-  { to: "/paperwork-deadlines", label: "Paperwork Deadlines" },
+  { to: "/competitive-analysis", label: "Competitive Analysis" },
   { to: "/outputs", label: "Outputs" },
 ];
 

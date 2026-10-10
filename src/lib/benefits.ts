@@ -1,5 +1,6 @@
+import { addMonths, differenceInCalendarMonths, format } from "date-fns";
 import {
-  RATE_BASIS, TIERS,
+  RATE_BASIS, TIERS, TIER_LABELS, isHsaEligible,
   type BenefitsInputs, type HealthLine, type HealthPlan, type RiskCoverage, type Tier,
 } from "../state/benefits";
 
@@ -21,7 +22,7 @@ export function employerContribution(plan: HealthPlan, line: HealthLine, tier: T
 
 // Employer HSA contribution per enrollee per month (HSA-eligible plans only).
 export function hsaContribution(plan: HealthPlan, line: HealthLine, tier: Tier) {
-  return line.hsa?.enabled && plan.hsaEligible ? line.hsa.monthly[tier] || 0 : 0;
+  return line.hsa?.enabled && isHsaEligible(plan) ? line.hsa.monthly[tier] || 0 : 0;
 }
 
 export function planTotals(plan: HealthPlan, line: HealthLine) {
@@ -96,8 +97,11 @@ export function benefitsSummary(b: BenefitsInputs) {
   health("medical", "Medical");
   health("dental", "Dental");
   health("vision", "Vision");
-  const risk = b.risk.map(riskPremium).reduce((a, r) => ({ premium: a.premium + r.premium, employer: a.employer + r.employer, employee: a.employee + r.employee }), { premium: 0, employer: 0, employee: 0 });
-  lines.push({ key: "risk", label: "STD / LTD / Life AD&D", path: "disability-life", ...risk });
+  for (const id of ["std", "ltd", "life"] as const) {
+    const c = b.risk.find((r) => r.id === id)!;
+    const label = id === "std" ? "STD" : id === "ltd" ? "LTD" : "Life / AD&D";
+    lines.push({ key: id, label, path: "disability-life", ...riskPremium(c), note: c.enabled && c.benefit ? c.benefit : undefined });
+  }
   const vol = b.voluntary.reduce((a, v) => {
     const employer = (v.monthlyPremium || 0) * Math.min(100, Math.max(0, v.employerPct || 0)) / 100;
     return { premium: a.premium + (v.monthlyPremium || 0), employer: a.employer + employer, employee: a.employee + (v.monthlyPremium || 0) - employer };
@@ -111,7 +115,9 @@ export function benefitsSummary(b: BenefitsInputs) {
 }
 
 // Current (incumbent) vs. TriNet monthly cost by line. TriNet figures follow the current funding strategy.
-export function currentVsTrinet(b: BenefitsInputs) {
+export function currentVsTrinet(b: BenefitsInputs, currentRenewalDate = "") {
+  const renewal = renewalProjection(currentRenewalDate, b.effectiveDate, b.current.anticipatedRenewalPct);
+  const factor = renewal && b.current.anticipatedRenewalPct ? renewal.factor : 1;
   const med = healthLineTotals(b.medical);
   const den = healthLineTotals(b.dental);
   const vis = healthLineTotals(b.vision);
@@ -119,12 +125,66 @@ export function currentVsTrinet(b: BenefitsInputs) {
   const dis = b.risk.filter((r) => r.id !== "life").map(riskPremium).reduce((a, r) => ({ employer: a.employer + r.employer, employee: a.employee + r.employee }), { employer: 0, employee: 0 });
   const c = b.current;
   const rows = [
-    { key: "medical" as const, label: "Medical", current: c.noCurrentMedical ? { employer: 0, employee: 0 } : c.medical, trinet: { employer: med.employer, employee: med.employee } },
+    { key: "medical" as const, label: "Medical", current: c.noCurrentMedical ? { employer: 0, employee: 0 } : { employer: c.medical.employer * factor, employee: c.medical.employee * factor }, trinet: { employer: med.employer, employee: med.employee } },
     { key: "dental" as const, label: "Dental", current: c.dental, trinet: { employer: den.employer, employee: den.employee } },
     { key: "vision" as const, label: "Vision", current: c.vision, trinet: { employer: vis.employer, employee: vis.employee } },
     { key: "life" as const, label: "Life / AD&D", current: c.life, trinet: { employer: life.employer, employee: life.employee } },
     { key: "disability" as const, label: "Disability", current: c.disability, trinet: dis },
   ];
   const sum = (k: "current" | "trinet") => rows.reduce((a, r) => ({ employer: a.employer + r[k].employer, employee: a.employee + r[k].employee }), { employer: 0, employee: 0 });
-  return { rows, current: sum("current"), trinet: sum("trinet") };
+  return { rows, current: sum("current"), trinet: sum("trinet"), renewal, factor };
+}
+
+// Funding rule: the employer must contribute at least 50% of the lowest-cost plan (employee-only rate).
+export const MIN_FUNDING_PCT = 50;
+export function fundingCheck(line: HealthLine) {
+  const priced = line.plans.filter((p) => (p.rates.ee || 0) > 0);
+  if (priced.length === 0) return null;
+  const lowest = priced.reduce((a, p) => (p.rates.ee < a.rates.ee ? p : a));
+  const minimum = (lowest.rates.ee * MIN_FUNDING_PCT) / 100;
+  const contributions = priced.map((p) => ({ plan: p, amount: employerContribution(p, line, "ee") }));
+  const short = contributions.filter((c) => c.amount + 0.005 < minimum);
+  return { ok: short.length === 0, lowest, minimum, short };
+}
+
+// Anticipated renewal: TriNet medical renews quarterly (Jan, Apr, Jul, Oct 1), so TriNet's quoted rate holds from
+// the start date to the last quarterly renewal within 12 months. Months in that window after the current plan's
+// renewal get the anticipated increase.
+export function renewalProjection(currentRenewal: string, trinetStart: string, pct: number) {
+  if (!currentRenewal || !trinetStart) return null;
+  const start = new Date(trinetStart + "T00:00:00");
+  const yearOut = addMonths(start, 12);
+  let trinetRenewal = new Date(yearOut.getFullYear(), Math.floor(yearOut.getMonth() / 3) * 3, 1);
+  if (trinetRenewal <= start) trinetRenewal = addMonths(trinetRenewal, 3);
+  const windowMonths = differenceInCalendarMonths(trinetRenewal, start);
+  let renewal = new Date(currentRenewal + "T00:00:00");
+  while (renewal < start) renewal = addMonths(renewal, 12);
+  while (addMonths(renewal, -12) >= start) renewal = addMonths(renewal, -12);
+  const increaseMonths = Math.max(0, Math.min(windowMonths, differenceInCalendarMonths(trinetRenewal, renewal)));
+  const factor = 1 + ((pct || 0) / 100) * (windowMonths ? increaseMonths / windowMonths : 0);
+  return {
+    trinetRenewal: format(trinetRenewal, "MMM d, yyyy"),
+    currentRenewal: format(renewal, "MMM d, yyyy"),
+    windowMonths, increaseMonths, factor,
+  };
+}
+
+// Per-employee monthly costs under the current funding strategy, from an imported census.
+export function employeeCosts(b: BenefitsInputs) {
+  const cost = (key: "medical" | "dental" | "vision", planName: string, tier: Tier) => {
+    const line = b[key];
+    const plan = planName ? line.plans.find((p) => p.name === planName) : undefined;
+    if (!plan) return null;
+    const employer = employerContribution(plan, line, tier) + hsaContribution(plan, line, tier);
+    const premium = plan.rates[tier] || 0;
+    return { plan: plan.name, employer, employee: premium - employerContribution(plan, line, tier) };
+  };
+  return b.census.map((e) => {
+    const medical = cost("medical", e.medical, e.tier);
+    const dental = cost("dental", e.dental, e.tier);
+    const vision = cost("vision", e.vision, e.tier);
+    const employer = (medical?.employer ?? 0) + (dental?.employer ?? 0) + (vision?.employer ?? 0);
+    const employee = (medical?.employee ?? 0) + (dental?.employee ?? 0) + (vision?.employee ?? 0);
+    return { ...e, tierLabel: TIER_LABELS[e.tier], medicalCost: medical, dentalCost: dental, visionCost: vision, employer, employee };
+  });
 }
