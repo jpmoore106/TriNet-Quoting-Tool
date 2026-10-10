@@ -11,6 +11,7 @@ import { ActiveCompany, RequireRep } from "./components/AccountGate";
 import Login from "./pages/account/Login";
 import Companies from "./pages/account/Companies";
 import Team from "./pages/account/Team";
+import Account from "./pages/account/Account";
 import ProspectView from "./pages/prospect/ProspectView";
 import BenefitsLayout from "./pages/benefits/BenefitsLayout";
 import BenefitsSummary from "./pages/benefits/BenefitsSummary";
@@ -32,6 +33,7 @@ export default function App() {
         <Route element={<RequireRep />}>
           <Route path="companies" element={<Companies />} />
           <Route path="team" element={<Team />} />
+          <Route path="account" element={<Account />} />
           {/* Quote pages work on the open company. */}
           <Route element={<ActiveCompany />}>
             <Route path="outputs/executive-summary" element={<ExecutiveSummary />} />

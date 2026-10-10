@@ -6,7 +6,8 @@ export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://hepfuw
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || "sb_publishable_2x9uaclg-Hj2iRG0Fg0yFA_oTcM5lhY";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+  // detectSessionInUrl: a sign-in link from the email (rather than a code) completes sign-in when it opens the site.
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
 export const TRINET_DOMAIN = "@trinet.com";

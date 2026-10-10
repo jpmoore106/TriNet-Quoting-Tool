@@ -25,7 +25,9 @@ export default function AppHeader({ right, children }: { right?: React.ReactNode
           <nav aria-label="Account" className="flex items-center gap-1">
             <NavLink to="/companies" className={topLink}>Companies</NavLink>
             {profile.role === "admin" && <NavLink to="/team" className={topLink}>Team</NavLink>}
-            <span className="hidden md:inline px-2 text-xs text-white/70" data-testid="signed-in-as">{email}</span>
+            <NavLink to="/account" className={topLink} title={email} data-testid="signed-in-as">
+              Account<span className="hidden lg:inline font-normal text-white/70"> · {email}</span>
+            </NavLink>
             <button type="button" onClick={() => void signOut()} className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm font-semibold text-white/80 hover:text-white">
               <LogOut className="h-4 w-4" aria-hidden /> Sign out
             </button>
