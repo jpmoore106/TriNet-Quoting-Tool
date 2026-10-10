@@ -5,6 +5,7 @@ import { useQuote } from "../state/QuoteContext";
 export const NAV_ITEMS = [
   { to: "/", label: "Setup" },
   { to: "/professional-service-fees", label: "Professional Service Fees" },
+  { to: "/benefits", label: "Benefits" },
   { to: "/competitive-analysis", label: "Competitive Analysis" },
   { to: "/vroi", label: "vROI" },
   { to: "/wc-breakdown", label: "WC Breakdown" },
