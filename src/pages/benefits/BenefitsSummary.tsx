@@ -1,4 +1,6 @@
 import { useState } from "react";
+import DeckSlides from "../../components/DeckSlides";
+import { PAGE_SLIDES } from "../../data/masterDeck";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "../../components/ui/card";
 import { Section, TextField } from "../../components/form";
@@ -90,6 +92,8 @@ export default function BenefitsSummary() {
       </Card>
 
       <Comparison />
+      <DeckSlides slides={quote.deck.benefitsModel === "oms" ? PAGE_SLIDES.oms : PAGE_SLIDES.benefits}
+        intro={quote.deck.benefitsModel === "oms" ? "Explain Open Market Solutions." : "Show the client what comes with TriNet-sponsored benefits."} />
     </div>
   );
 }

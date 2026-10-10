@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
+import DeckSlides from "../components/DeckSlides";
 import { Card, CardContent } from "../components/ui/card";
 import PageTitle from "../components/PageTitle";
 import { useQuote } from "../state/QuoteContext";
 
 // Placeholder for pages that haven't been built yet.
-export default function ComingSoon({ title, description }: { title: string; description: string }) {
+export default function ComingSoon({ title, description, slides }: { title: string; description: string; slides?: number[] }) {
   const { totalWse } = useQuote();
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
@@ -19,6 +20,11 @@ export default function ComingSoon({ title, description }: { title: string; desc
           </p>
         </CardContent>
       </Card>
+      {slides && (
+        <div className="mt-6">
+          <DeckSlides slides={slides} />
+        </div>
+      )}
     </div>
   );
 }

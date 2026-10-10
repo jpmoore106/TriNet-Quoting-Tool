@@ -1,4 +1,6 @@
 import { AlertTriangle, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import DeckSlides from "../../components/DeckSlides";
+import { PAGE_SLIDES } from "../../data/masterDeck";
 import { Card, CardContent } from "../../components/ui/card";
 import { Section, labelClass, inputClass, secondaryButton } from "../../components/form";
 import { useQuote } from "../../state/QuoteContext";
@@ -185,6 +187,9 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
       </button>
 
       {line.currentPlans.length > 0 && <CurrentPlans plans={line.currentPlans} title={title} />}
+      {lineKey === "medical" && (
+        <DeckSlides slides={PAGE_SLIDES.medical} intro="Walk through the medical comparison and TriNet's benefits support." />
+      )}
     </div>
   );
 }

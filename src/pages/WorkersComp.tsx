@@ -1,4 +1,6 @@
 import { Card, CardContent } from "../components/ui/card";
+import DeckSlides from "../components/DeckSlides";
+import { PAGE_SLIDES } from "../data/masterDeck";
 import PageTitle from "../components/PageTitle";
 import { useQuote } from "../state/QuoteContext";
 import { usd } from "../lib/pricing";
@@ -67,6 +69,7 @@ export default function WorkersComp() {
           </Card>
         </>
       )}
+      <DeckSlides slides={PAGE_SLIDES.workersComp} intro="Explain how TriNet's workers' comp and risk mitigation protect the business." />
     </div>
   );
 }

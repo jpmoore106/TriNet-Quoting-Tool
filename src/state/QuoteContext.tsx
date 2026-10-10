@@ -18,6 +18,15 @@ export type SetupFee = {
   notes: string;
 };
 
+export type BenefitsModel = "trinet" | "oms" | "none";
+
+// Proposal deck built from the master deck.
+export type DeckOptions = {
+  benefitsModel: BenefitsModel; // TriNet-sponsored benefits, Open Market Solutions or no benefits
+  selected: number[] | null; // master-deck slide numbers; null = follow the recommendations
+  paperworkDeadline: string; // yyyy-MM-dd, shown on the onboarding timeline slide
+};
+
 export type QuoteInputs = {
   companyName: string;
   repName: string;
@@ -35,6 +44,7 @@ export type QuoteInputs = {
   setupFee: SetupFee;
   benefits: BenefitsInputs;
   chevron: ChevronData | null; // imported Chevron proposal
+  deck: DeckOptions;
 };
 
 const EMPTY: QuoteInputs = {
@@ -54,6 +64,7 @@ const EMPTY: QuoteInputs = {
   setupFee: { amount: 0, discount: 0, installments: 1, firstInvoiceDate: "", notes: "" },
   benefits: EMPTY_BENEFITS,
   chevron: null,
+  deck: { benefitsModel: "trinet", selected: null, paperworkDeadline: "" },
 };
 
 const STORAGE_KEY = "trinet-quote-inputs";
@@ -63,7 +74,7 @@ function load(): QuoteInputs {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return EMPTY;
     const saved = JSON.parse(raw);
-    return { ...EMPTY, ...saved, benefits: normalizeBenefits(saved.benefits) };
+    return { ...EMPTY, ...saved, benefits: normalizeBenefits(saved.benefits), deck: { ...EMPTY.deck, ...saved.deck } };
   } catch {
     return EMPTY;
   }

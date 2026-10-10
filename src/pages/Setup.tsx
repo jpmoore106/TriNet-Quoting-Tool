@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import DeckSlides from "../components/DeckSlides";
+import { PAGE_SLIDES } from "../data/masterDeck";
 import { Plus, Trash2 } from "lucide-react";
 import PageTitle from "../components/PageTitle";
 import DocumentUploads from "../components/DocumentUploads";
@@ -198,6 +200,9 @@ export default function Setup() {
           Go to outputs →
           </Link>
         </span>
+      </div>
+      <div className="mt-6">
+        <DeckSlides slides={PAGE_SLIDES.setup} intro="Plan the path to the start date with the client." />
       </div>
     </div>
   );
