@@ -8,6 +8,7 @@ import { useQuote } from "../state/QuoteContext";
 import { feeSummary } from "../lib/pricing";
 import { primaryButton } from "../components/form";
 import DeckBuilder from "../components/DeckBuilder";
+import ShareLinks from "../components/ShareLinks";
 
 export default function Outputs() {
   const { quote } = useQuote();
@@ -69,6 +70,10 @@ export default function Outputs() {
           description="The value and return on investment of moving to TriNet. Available once the vROI calculator is built.">
           <span className="inline-flex items-center rounded-lg bg-canvas px-4 py-2 text-sm font-medium text-tngray-dark">Coming soon</span>
         </OutputCard>
+      </div>
+
+      <div className="mt-6">
+        <ShareLinks />
       </div>
 
       <div className="mt-6">
