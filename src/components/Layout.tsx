@@ -1,6 +1,7 @@
-import { NavLink, Outlet } from "react-router-dom";
-import TriNetLogo from "../assets/trinet_logo_reversed.png";
-import { useQuote } from "../state/QuoteContext";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Eye } from "lucide-react";
+import AppHeader from "./AppHeader";
+import { useQuote, type SaveState } from "../state/QuoteContext";
 
 export const NAV_ITEMS = [
   { to: "/", label: "Setup" },
@@ -13,21 +14,34 @@ export const NAV_ITEMS = [
   { to: "/outputs", label: "Outputs" },
 ];
 
+const SAVE_LABELS: Record<SaveState, string> = {
+  saved: "All changes saved",
+  saving: "Saving…",
+  error: "Couldn't save. Retrying on your next change.",
+  readonly: "View only",
+};
+
 export default function Layout() {
-  const { quote } = useQuote();
+  const { quote, readOnly, saveState } = useQuote();
+  // Read-only viewers (managers looking at a rep's company) can still use Outputs to download documents.
+  const lockInputs = readOnly && !useLocation().pathname.startsWith("/outputs");
   return (
     <div className="min-h-screen bg-canvas font-brand text-navy">
-      <header className="sticky top-0 z-20 bg-navy">
-        <div className="max-w-7xl mx-auto px-4 pt-4 pb-2 flex items-center gap-4">
-          {/* On TriNet Navy, use the reversed-out logo. */}
-          <img src={TriNetLogo} alt="TriNet" className="h-7 w-auto" />
-          <span className="h-6 w-px bg-white/30" aria-hidden />
-          <h1 className="flex-1 text-lg font-semibold text-white">Quoting Tool</h1>
-          {quote.companyLogo && (
-            <img src={quote.companyLogo} alt="Client logo" className="h-10 max-w-[160px] object-contain rounded bg-white p-1" />
-          )}
-        </div>
-        <nav className="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto">
+      <AppHeader
+        right={
+          <div className="flex items-center gap-3 min-w-0">
+            {quote.companyLogo && (
+              <img src={quote.companyLogo} alt="Client logo" className="h-10 max-w-[140px] object-contain rounded bg-white p-1" />
+            )}
+            <div className="min-w-0 text-right">
+              <p className="truncate text-sm font-semibold text-white" data-testid="active-company">{quote.companyName || "Untitled company"}</p>
+              <p className={`text-xs ${saveState === "error" ? "text-orange-light" : "text-white/70"}`} data-testid="save-state" role="status">
+                {SAVE_LABELS[saveState]}
+              </p>
+            </div>
+          </div>
+        }>
+        <nav aria-label="Quote" className="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
@@ -43,9 +57,19 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-      </header>
+      </AppHeader>
+      {readOnly && (
+        <div role="note" className="bg-orange/15 text-navy" data-testid="readonly-banner">
+          <p className="max-w-7xl mx-auto px-4 py-2 text-sm flex items-center gap-2">
+            <Eye className="h-4 w-4 shrink-0" aria-hidden />
+            You're viewing a team member's company. Changes aren't saved. <Link to="/companies" className="underline font-semibold">Back to companies</Link>
+          </p>
+        </div>
+      )}
       <main>
-        <Outlet />
+        <fieldset disabled={lockInputs} className="contents">
+          <Outlet />
+        </fieldset>
       </main>
     </div>
   );
