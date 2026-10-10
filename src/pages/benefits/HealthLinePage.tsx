@@ -1,11 +1,12 @@
 import { Plus, Trash2 } from "lucide-react";
+import { Card, CardContent } from "../../components/ui/card";
 import { Section, labelClass, inputClass, secondaryButton } from "../../components/form";
 import { useQuote } from "../../state/QuoteContext";
 import {
   FUNDING_LABELS, TIERS, TIER_LABELS, newHealthPlan,
-  type FundingStrategy, type FundingType, type HealthLine, type HealthPlan,
+  type FundingStrategy, type FundingType, type HealthLine, type HealthPlan, type HsaFunding,
 } from "../../state/benefits";
-import { employerContribution, healthLineTotals, planTotals } from "../../lib/benefits";
+import { currentPlanTotals, employerContribution, healthLineTotals, hsaContribution, planTotals } from "../../lib/benefits";
 import { usd } from "../../lib/pricing";
 import { CellMoney, CellNumber, Totals } from "./fields";
 
@@ -16,69 +17,96 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
   const line = quote.benefits[lineKey];
   const setLine = (changes: Partial<HealthLine>) => updateBenefits({ [lineKey]: { ...line, ...changes } });
   const setFunding = (changes: Partial<FundingStrategy>) => setLine({ funding: { ...line.funding, ...changes } });
+  const setHsa = (changes: Partial<HsaFunding>) => setLine({ hsa: { ...line.hsa, ...changes } });
   const setPlan = (id: string, changes: Partial<HealthPlan>) =>
     setLine({ plans: line.plans.map((p) => (p.id === id ? { ...p, ...changes } : p)) });
   const totals = healthLineTotals(line);
   const f = line.funding;
+  const isMedical = lineKey === "medical";
+  const hsaPlans = line.plans.filter((p) => p.hsaEligible);
 
   return (
     <div className="space-y-6">
       <Totals items={[
         { label: "Enrolled", value: String(totals.enrolled), testId: `${lineKey}-enrolled` },
         { label: "Monthly premium", value: usd(totals.premium), testId: `${lineKey}-premium` },
-        { label: "Employer / month", value: usd(totals.employer), testId: `${lineKey}-employer` },
+        { label: isMedical && totals.hsa ? "Employer / month (incl. HSA)" : "Employer / month", value: usd(totals.employer), testId: `${lineKey}-employer` },
         { label: "Employee / month", value: usd(totals.employee), testId: `${lineKey}-employee` },
       ]} />
 
       <Section title="Employer funding strategy" description={`How the employer pays toward ${title.toLowerCase()} premiums.`}>
-        <div>
-          <label htmlFor={`${lineKey}-funding`} className={labelClass}>Strategy</label>
-          <select id={`${lineKey}-funding`} className={inputClass} value={f.type}
-            onChange={(e) => setFunding({ type: e.target.value as FundingType })}>
-            {(Object.keys(FUNDING_LABELS) as FundingType[]).map((k) => <option key={k} value={k}>{FUNDING_LABELS[k]}</option>)}
-          </select>
-        </div>
-        {f.type === "basePlan" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor={`${lineKey}-base`} className={labelClass}>Base plan</label>
-            <select id={`${lineKey}-base`} className={inputClass} value={f.basePlanId}
-              onChange={(e) => setFunding({ basePlanId: e.target.value })}>
-              <option value="">Each plan funds itself</option>
-              {line.plans.map((p, i) => <option key={p.id} value={p.id}>{p.name || `Plan ${i + 1}`}</option>)}
+            <label htmlFor={`${lineKey}-funding`} className={labelClass}>Contribution type</label>
+            <select id={`${lineKey}-funding`} className={inputClass} value={f.type}
+              onChange={(e) => setFunding({ type: e.target.value as FundingType })}>
+              {(Object.keys(FUNDING_LABELS) as FundingType[]).map((k) => <option key={k} value={k}>{FUNDING_LABELS[k]}</option>)}
             </select>
           </div>
-        )}
-        {f.type === "pctEeOnly" ? (
-          <div className="max-w-xs">
-            <label className={labelClass}>Employer pays, of the employee-only rate</label>
-            <CellNumber label="Employer % of employee-only rate" value={f.eeOnlyPct} suffix="%" step={0.5}
-              onChange={(v) => setFunding({ eeOnlyPct: Math.min(100, v) })} />
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {TIERS.map((t) => (
-              <div key={t}>
-                <label className={labelClass}>{TIER_LABELS[t]}</label>
-                {f.type === "flat" ? (
-                  <CellMoney label={`Employer $ ${TIER_LABELS[t]}`} value={f.flat[t]} onChange={(v) => setFunding({ flat: { ...f.flat, [t]: v } })} />
-                ) : (
-                  <CellNumber label={`Employer % ${TIER_LABELS[t]}`} value={f.pct[t]} suffix="%" step={0.5}
-                    onChange={(v) => setFunding({ pct: { ...f.pct, [t]: Math.min(100, v) } })} />
-                )}
-              </div>
-            ))}
-          </div>
+          {f.type === "percent" && (
+            <div>
+              <label htmlFor={`${lineKey}-limit`} className={labelClass}>Contribution limit</label>
+              <select id={`${lineKey}-limit`} className={inputClass} value={f.limitPlanId}
+                onChange={(e) => setFunding({ limitPlanId: e.target.value })}>
+                <option value="">None</option>
+                {line.plans.map((p, i) => <option key={p.id} value={p.id}>Capped at {p.name || `Plan ${i + 1}`}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {TIERS.map((t) => (
+            <div key={t}>
+              <label className={labelClass}>{TIER_LABELS[t]}</label>
+              {f.type === "flat" ? (
+                <CellMoney label={`Employer $ ${TIER_LABELS[t]}`} value={f.flat[t]} onChange={(v) => setFunding({ flat: { ...f.flat, [t]: v } })} />
+              ) : (
+                <CellNumber label={`Employer % ${TIER_LABELS[t]}`} value={f.pct[t]} suffix="%" step={0.5}
+                  onChange={(v) => setFunding({ pct: { ...f.pct, [t]: Math.min(100, v) } })} />
+              )}
+            </div>
+          ))}
+        </div>
+        {f.type === "percent" && f.limitPlanId && (
+          <p className="text-sm text-tngray-dark">The employer pays these percentages of each plan, up to the same percentage of the limit plan's premium.</p>
         )}
       </Section>
 
+      {isMedical && (
+        <Section title="HSA employer contributions" description="Monthly employer contribution to the HSA of each employee enrolled in an HSA-eligible plan.">
+          <label className="flex items-center gap-2 text-sm font-semibold text-navy">
+            <input id="hsa-enabled" type="checkbox" checked={line.hsa.enabled} onChange={(e) => setHsa({ enabled: e.target.checked })} />
+            Employer contributes to HSAs
+          </label>
+          {line.hsa.enabled && (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {TIERS.map((t) => (
+                  <div key={t}>
+                    <label className={labelClass}>{TIER_LABELS[t]}</label>
+                    <CellMoney label={`HSA $ ${TIER_LABELS[t]}`} value={line.hsa.monthly[t]} onChange={(v) => setHsa({ monthly: { ...line.hsa.monthly, [t]: v } })} />
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm text-tngray-dark" data-testid="hsa-summary">
+                {hsaPlans.length === 0
+                  ? "No plans are marked HSA-eligible yet. Tick \"HSA-eligible\" on an HDHP plan below."
+                  : `${usd(totals.hsa)}/mo (${usd(totals.hsa * 12, 0)}/yr) across ${hsaPlans.map((p) => p.name || "unnamed plan").join(", ")}.`}
+              </p>
+            </>
+          )}
+        </Section>
+      )}
+
       {line.plans.map((plan, i) => {
         const pt = planTotals(plan, line);
+        const label = plan.name || `Plan ${i + 1}`;
         return (
           <Section key={plan.id} title={plan.name || `${title} plan ${i + 1}`}>
             <div className="grid grid-cols-1 sm:grid-cols-[2fr_1.5fr_1fr_auto] gap-3 items-end">
               <div>
                 <label className={labelClass} htmlFor={`${plan.id}-name`}>Plan name</label>
-                <input id={`${plan.id}-name`} className={inputClass} value={plan.name} placeholder="e.g. Gold PPO 500"
+                <input id={`${plan.id}-name`} className={inputClass} value={plan.name} placeholder="e.g. Aetna PPO 750"
                   onChange={(e) => setPlan(plan.id, { name: e.target.value })} />
               </div>
               <div>
@@ -91,12 +119,18 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
                 <input id={`${plan.id}-type`} className={inputClass} value={plan.planType} placeholder="PPO, HMO, HDHP"
                   onChange={(e) => setPlan(plan.id, { planType: e.target.value })} />
               </div>
-              <button type="button" aria-label={`Remove ${plan.name || `plan ${i + 1}`}`}
-                onClick={() => setLine({ plans: line.plans.filter((p) => p.id !== plan.id) })}
+              <button type="button" aria-label={`Remove ${label}`}
+                onClick={() => setLine({ plans: line.plans.filter((p) => p.id !== plan.id), funding: f.limitPlanId === plan.id ? { ...f, limitPlanId: "" } : f })}
                 className="h-10 w-10 flex items-center justify-center rounded-lg text-tngray-dark hover:bg-alert/5 hover:text-alert">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
+            {isMedical && (
+              <label className="flex items-center gap-2 text-sm font-semibold text-navy">
+                <input type="checkbox" aria-label={`${label} HSA-eligible`} checked={plan.hsaEligible} onChange={(e) => setPlan(plan.id, { hsaEligible: e.target.checked })} />
+                HSA-eligible
+              </label>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
@@ -111,14 +145,15 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
                 <tbody>
                   {TIERS.map((t) => {
                     const er = employerContribution(plan, line, t);
+                    const hsa = hsaContribution(plan, line, t);
                     return (
                       <tr key={t} className="border-b border-tngray-light last:border-0">
                         <td className="py-2 pr-3 font-medium">{TIER_LABELS[t]}</td>
-                        <td className="py-2 pr-3"><CellMoney label={`${plan.name || `Plan ${i + 1}`} ${TIER_LABELS[t]} rate`} value={plan.rates[t]}
+                        <td className="py-2 pr-3"><CellMoney label={`${label} ${TIER_LABELS[t]} rate`} value={plan.rates[t]}
                           onChange={(v) => setPlan(plan.id, { rates: { ...plan.rates, [t]: v } })} /></td>
-                        <td className="py-2 pr-3"><CellNumber label={`${plan.name || `Plan ${i + 1}`} ${TIER_LABELS[t]} enrolled`} value={plan.enrollment[t]}
+                        <td className="py-2 pr-3"><CellNumber label={`${label} ${TIER_LABELS[t]} enrolled`} value={plan.enrollment[t]}
                           onChange={(v) => setPlan(plan.id, { enrollment: { ...plan.enrollment, [t]: v } })} /></td>
-                        <td className="py-2 pr-3">{usd(er)}</td>
+                        <td className="py-2 pr-3">{usd(er)}{hsa > 0 && <span className="text-tngray-dark"> + {usd(hsa)} HSA</span>}</td>
                         <td className="py-2">{usd((plan.rates[t] || 0) - er)}</td>
                       </tr>
                     );
@@ -127,7 +162,8 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
               </table>
             </div>
             <p className="text-sm text-tngray-dark" data-testid={`${plan.id}-totals`}>
-              {pt.enrolled} enrolled · {usd(pt.premium)}/mo premium · <span className="font-semibold text-navy">{usd(pt.employer)}/mo employer</span> · {usd(pt.employee)}/mo employee
+              {pt.enrolled} enrolled · {usd(pt.premium)}/mo premium · <span className="font-semibold text-navy">{usd(pt.employer + pt.hsa)}/mo employer</span>
+              {pt.hsa > 0 && ` (incl. ${usd(pt.hsa)} HSA)`} · {usd(pt.employee)}/mo employee
             </p>
           </Section>
         );
@@ -136,6 +172,41 @@ export default function HealthLinePage({ lineKey, title }: { lineKey: LineKey; t
       <button type="button" className={secondaryButton} onClick={() => setLine({ plans: [...line.plans, newHealthPlan()] })}>
         <Plus className="h-4 w-4" /> Add {title.toLowerCase()} plan
       </button>
+
+      {line.currentPlans.length > 0 && <CurrentPlans plans={line.currentPlans} title={title} />}
     </div>
+  );
+}
+
+// Incumbent plans from an imported quote, for comparison (read-only).
+function CurrentPlans({ plans, title }: { plans: HealthPlan[]; title: string }) {
+  const t = currentPlanTotals(plans);
+  return (
+    <Card>
+      <CardContent className="p-5 sm:p-6 overflow-x-auto">
+        <h3 className="text-lg font-bold text-navy">Current {title.toLowerCase()} plans</h3>
+        <p className="text-sm text-tngray-dark mb-3">From the imported quote: {t.enrolled} enrolled · {usd(t.premium)}/mo total premium.</p>
+        <table className="w-full min-w-[640px] text-sm" data-testid="current-plans">
+          <thead>
+            <tr className="text-left text-tngray-dark border-b border-tngray-light">
+              <th className="py-2 pr-3 font-semibold">Plan</th>
+              {TIERS.map((tier) => <th key={tier} className="py-2 pr-3 font-semibold text-right">{TIER_LABELS[tier]}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {plans.map((p) => (
+              <tr key={p.id} className="border-b border-tngray-light last:border-0">
+                <td className="py-2 pr-3 font-medium">{p.name}</td>
+                {TIERS.map((tier) => (
+                  <td key={tier} className="py-2 pr-3 text-right">
+                    {usd(p.rates[tier])}<span className="block text-xs text-tngray-dark">{p.enrollment[tier] || "–"} enrolled</span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
   );
 }
