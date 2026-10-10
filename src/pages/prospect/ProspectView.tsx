@@ -10,7 +10,7 @@ import { Card, CardContent } from "../../components/ui/card";
 import { primaryButton } from "../../components/form";
 import { useAuth } from "../../state/AuthContext";
 import { openShare, recordView, type ProspectSnapshot } from "../../lib/cloud/shares";
-import { SERVICE_INCLUSIONS } from "../../data/serviceInclusions";
+import { carveOutNote, inclusionsFor } from "../../data/serviceInclusions";
 import { feeSummary, formatDate, freeMonthsCredit, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../../lib/pricing";
 import { benefitsSummary, currentVsTrinet, employerContribution, hsaContribution } from "../../lib/benefits";
 import { TIERS, TIER_LABELS, type HealthLine } from "../../state/benefits";
@@ -86,6 +86,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Proposal({ snapshot, email, onSignOut }: { snapshot: ProspectSnapshot; email: string; onSignOut: () => void }) {
   const q = snapshot.quote;
+  const carveOuts = { medical: q.benefits.medicalCarvedOut, workersComp: q.workersCompCarvedOut };
   const company = q.companyName || "Your company";
   const fees = feeSummary(q);
   const breaks = priceBreakRows(q);
@@ -253,7 +254,7 @@ function Proposal({ snapshot, email, onSignOut }: { snapshot: ProspectSnapshot; 
 
           <Section title="What's included">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {SERVICE_INCLUSIONS.map((c) => (
+              {inclusionsFor(carveOuts).map((c) => (
                 <div key={c.title} className="flex gap-3">
                   <img src={c.icon} alt="" className="h-9 w-9 shrink-0 object-contain" />
                   <div>
@@ -263,6 +264,7 @@ function Proposal({ snapshot, email, onSignOut }: { snapshot: ProspectSnapshot; 
                 </div>
               ))}
             </div>
+            {carveOutNote(carveOuts) && <p className="mt-4 text-sm text-tngray-dark" data-testid="carve-out-note">{carveOutNote(carveOuts)}</p>}
           </Section>
 
           {timeline.length > 0 && (

@@ -10,6 +10,7 @@ import { useQuote, type CurrentWcRow } from "../state/QuoteContext";
 import { usd } from "../lib/pricing";
 import { currentWcSummary } from "../lib/workersComp";
 import { CellMoney, CellNumber, Totals } from "./benefits/fields";
+import CarveOuts, { CarvedOutBanner } from "../components/CarveOuts";
 
 const signed = (n: number) => `${n >= 0 ? "+" : "−"}${usd(Math.abs(n))}`;
 const pct = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}%`;
@@ -27,15 +28,18 @@ export default function WorkersComp() {
   const trinet = trinetRows.reduce((a, r) => a + r.trinetFee, 0);
   // Current annual cost: the discounted premium entered here, else the current fees on the Chevron proposal.
   const currentCost = cur.hasData ? cur.discounted : trinetRows.reduce((a, r) => a + r.currentFee, 0);
+  const carved = quote.workersCompCarvedOut;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       <PageTitle eyebrow="Risk" title="Worker's Comp & EPLI" subtitle="Workers' compensation and employment practices liability coverage and costs." />
 
+      {carved && <CarvedOutBanner what="workersComp" />}
+      <CarveOuts only="workersComp" />
       <Totals items={[
         { label: "Current WC / year", value: currentCost ? usd(currentCost, 0) : "Not entered", testId: "wc-current" },
-        { label: "TriNet WC / year", value: trinet ? usd(trinet, 0) : "Import the proposal", testId: "wc-trinet" },
-        { label: "Difference", value: currentCost && trinet ? signed(trinet - currentCost) : "—", testId: "wc-difference" },
+        { label: "TriNet WC / year", value: carved ? "Carved out" : trinet ? usd(trinet, 0) : "Import the proposal", testId: "wc-trinet" },
+        { label: "Difference", value: !carved && currentCost && trinet ? signed(trinet - currentCost) : "—", testId: "wc-difference" },
         { label: "EPLI", value: "$1M included" },
       ]} />
 
@@ -130,7 +134,7 @@ export default function WorkersComp() {
         </div>
       </Section>
 
-      {trinetRows.length > 0 && (
+      {!carved && trinetRows.length > 0 && (
         <Card>
           <CardContent className="p-5 sm:p-6 overflow-x-auto">
             <h3 className="text-lg font-bold text-navy">TriNet workers' compensation</h3>

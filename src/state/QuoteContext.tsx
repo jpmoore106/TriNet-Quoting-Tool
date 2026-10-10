@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { EMPTY_BENEFITS, normalizeBenefits, type BenefitsInputs } from "./benefits";
 import type { ChevronData } from "../lib/chevron/parseChevron";
 import type { CallInsights } from "../lib/callInsights";
+import type { Promotion, RiskRating, ServiceLevel } from "../data/rateCard";
 
 export type PriceBreak = { id: string; headcount: number; pepm: number };
 
@@ -33,6 +34,15 @@ export type DeckOptions = {
 export type CurrentWcRow = { id: string; state: string; code: string; description: string; wages: number; rate: number };
 export type CurrentWc = { rows: CurrentWcRow[]; totalPremium: number; discountedPremium: number };
 
+// Internal pricing guidance inputs (rate card and promotions). Never shown to clients.
+export type PricingGuide = {
+  serviceLevel: ServiceLevel;
+  risk: RiskRating;
+  promotion: Promotion;
+  direct: boolean; // direct deal: lower PEPM promo price
+  tnxi: boolean; // TNXI deal: no promotions
+};
+
 export type QuoteInputs = {
   companyName: string;
   repName: string;
@@ -54,6 +64,8 @@ export type QuoteInputs = {
   currentWc: CurrentWc;
   freeMonths: number; // months of Professional Service Fee credited in year one
   callInsights: CallInsights | null; // AI analysis of a sales call transcript (Gong), edited by the rep
+  workersCompCarvedOut: boolean; // the client keeps its own workers' comp policy
+  pricingGuide: PricingGuide;
 };
 
 export const EMPTY_QUOTE: QuoteInputs = {
@@ -77,6 +89,8 @@ export const EMPTY_QUOTE: QuoteInputs = {
   currentWc: { rows: [], totalPremium: 0, discountedPremium: 0 },
   freeMonths: 0,
   callInsights: null,
+  workersCompCarvedOut: false,
+  pricingGuide: { serviceLevel: "assigned", risk: "", promotion: "none", direct: false, tnxi: false },
 };
 
 // Fill in fields added since a quote was saved.
@@ -87,6 +101,7 @@ export function normalizeQuote(saved: unknown): QuoteInputs {
     benefits: normalizeBenefits(s.benefits),
     deck: { ...EMPTY_QUOTE.deck, ...s.deck },
     currentWc: { ...EMPTY_QUOTE.currentWc, ...s.currentWc },
+    pricingGuide: { ...EMPTY_QUOTE.pricingGuide, ...s.pricingGuide },
   };
 }
 

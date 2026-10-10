@@ -146,6 +146,7 @@ export type BenefitsInputs = {
   census: CensusEmployee[];
   source: QuoteSource | null;
   riskOptions: RiskOptions;
+  medicalCarvedOut: boolean; // the client keeps its own medical plan; TriNet medical isn't part of the deal
 };
 
 export const percentFunding = (pct: number): FundingStrategy => ({
@@ -197,6 +198,7 @@ export const EMPTY_BENEFITS: BenefitsInputs = {
   census: [],
   source: null,
   riskOptions: { disability: [], life: [] },
+  medicalCarvedOut: false,
 };
 
 // Plans denoted HDHP are always HSA-eligible; other plans can be marked eligible by hand.

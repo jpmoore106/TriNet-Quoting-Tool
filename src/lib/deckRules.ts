@@ -13,8 +13,13 @@ export function recommendedSlides(q: QuoteInputs): Map<number, string> {
   const totalWse = (q.ftWse || 0) + (q.ptWse || 0);
   const hasMedical = b.medical.plans.length > 0;
   const picks = new Map<number, string>();
-  const add = (slides: number[], reason: string) => slides.forEach((n) => picks.has(n) || picks.set(n, reason));
 
+  // Carve-outs: no workers' comp slide, and no TriNet-medical slides (comparison, decision support, health advocate).
+  const skip = new Set<number>([
+    ...(q.workersCompCarvedOut ? [28] : []),
+    ...(b.medicalCarvedOut ? [53, 54, 55, 57, 58, 60] : []),
+  ]);
+  const add = (slides: number[], reason: string) => slides.forEach((n) => skip.has(n) || picks.has(n) || picks.set(n, reason));
   add(CORE, "Core proposal slide");
   if (model === "trinet") {
     add([22, 56, 57, 58, 59, 60], "TriNet-sponsored benefits");

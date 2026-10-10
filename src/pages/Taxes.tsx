@@ -6,6 +6,7 @@ import PageTitle from "../components/PageTitle";
 import { useQuote } from "../state/QuoteContext";
 import { usd } from "../lib/pricing";
 import { Totals } from "./benefits/fields";
+import { GapsNote } from "../components/DocumentUploads";
 
 export function NeedsProposal({ what }: { what: string }) {
   return (
@@ -29,6 +30,7 @@ export default function Taxes() {
       <PageTitle eyebrow="Payroll" title="Taxes" subtitle="Employer payroll taxes: FICA, FUTA and state unemployment (SUTA)." />
       {!c ? <NeedsProposal what="tax rates and estimated payroll taxes" /> : (
         <>
+          <GapsNote data={c} />
           <Totals items={[
             { label: "Annual gross wages", value: usd(c.annual.grossWages, 0), testId: "tax-wages" },
             { label: "Estimated payroll taxes", value: usd(c.annual.payrollTaxes, 0), testId: "tax-annual" },

@@ -103,3 +103,13 @@ export function parseChevron(rawPages: string[][], fileName = ""): ChevronData {
     workersComp,
   };
 }
+
+// Sections the proposal didn't include (or that couldn't be read), e.g. a preview copy without the cost pages.
+export function chevronGaps(c: ChevronData): string[] {
+  const gaps: string[] = [];
+  if (!c.taxes.length) gaps.push("payroll tax rates");
+  if (!c.workersComp.length) gaps.push("workers' comp rates");
+  if (!c.annual.grossWages && !c.annual.payrollTaxes) gaps.push("annual wages and payroll taxes");
+  if (!c.payroll.trinetPayBegin && !c.payroll.firstCheck) gaps.push("pay period and first check dates");
+  return gaps;
+}

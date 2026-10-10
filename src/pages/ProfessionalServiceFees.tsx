@@ -11,12 +11,13 @@ import PageTitle from "../components/PageTitle";
 import WingMotif from "../components/WingMotif";
 import { secondaryButton } from "../components/form";
 import { useQuote } from "../state/QuoteContext";
-import { SERVICE_INCLUSIONS } from "../data/serviceInclusions";
+import { carveOutNote, inclusionsFor } from "../data/serviceInclusions";
 import { feeSummary, freeMonthsCredit, priceBreakRows, rateCapLimits, setupFeeSchedule, usd } from "../lib/pricing";
 import { inputClass, labelClass } from "../components/form";
 
 export default function ProfessionalServiceFees() {
   const { quote, update } = useQuote();
+  const carveOuts = { medical: quote.benefits.medicalCarvedOut, workersComp: quote.workersCompCarvedOut };
   const fees = feeSummary(quote);
   const free = freeMonthsCredit(quote);
   const breaks = priceBreakRows(quote);
@@ -212,8 +213,9 @@ export default function ProfessionalServiceFees() {
 
       <h3 className="mt-10 mb-1 text-2xl font-bold leading-tight text-navy"><span className="block text-orange">Everything you need</span>What's included in your fee</h3>
       <p className="mb-4 text-tngray-dark">Every employee is covered by the full TriNet service, with no per-service add-ons for the essentials below.</p>
+      {carveOutNote(carveOuts) && <p className="mb-4 text-tngray-dark" data-testid="carve-out-note">{carveOutNote(carveOuts)}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {SERVICE_INCLUSIONS.map(({ title, icon, summary, items }) => (
+        {inclusionsFor(carveOuts).map(({ title, icon, summary, items }) => (
           <Card key={title}>
             <CardContent className="p-5">
               <div className="flex items-center gap-3">
