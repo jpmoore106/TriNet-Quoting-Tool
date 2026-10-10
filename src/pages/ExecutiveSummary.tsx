@@ -18,6 +18,8 @@ export default function ExecutiveSummary() {
   const cap = rateCapLimits(quote);
   const setup = setupFeeSchedule(quote);
   const free = freeMonthsCredit(quote);
+  const ins = quote.callInsights;
+  const callSteps = (ins?.next_steps ?? []).filter((x) => x.action.trim()).slice(0, 2);
   const company = quote.companyName || "Your Company";
 
   const today = [
@@ -63,8 +65,32 @@ export default function ExecutiveSummary() {
         <div className="px-10 py-5 space-y-[18px]">
           <section>
             <H>Where you are today</H>
-            <p>{today}</p>
+            <p data-testid="exec-today">{ins?.summary.trim() || today}</p>
           </section>
+
+          {ins && (ins.priorities.length > 0 || ins.pain_points.length > 0) && (
+            <section data-testid="exec-heard">
+              <H>What we heard</H>
+              <div className="grid grid-cols-2 gap-6">
+                {ins.priorities.length > 0 && (
+                  <div>
+                    <p className="font-bold">Your priorities</p>
+                    <ul className="mt-0.5 list-disc pl-4 space-y-0.5">
+                      {ins.priorities.slice(0, 3).map((x) => <li key={x.title}><span className="font-semibold">{x.title}.</span> <span className="text-tngray-dark">{x.detail}</span></li>)}
+                    </ul>
+                  </div>
+                )}
+                {ins.pain_points.length > 0 && (
+                  <div>
+                    <p className="font-bold">Challenges today</p>
+                    <ul className="mt-0.5 list-disc pl-4 space-y-0.5">
+                      {ins.pain_points.slice(0, 3).map((x) => <li key={x.title}><span className="font-semibold">{x.title}.</span> <span className="text-tngray-dark">{x.detail}</span></li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
 
           <section>
             <H>Your investment</H>
@@ -159,11 +185,13 @@ export default function ExecutiveSummary() {
 
           <section>
             <H>Next steps</H>
-            <ol className="list-decimal pl-5 space-y-0.5">
-              <li>Review this proposal and confirm your employee counts</li>
+            <ol className="list-decimal pl-5 space-y-0.5" data-testid="exec-next-steps">
+              {callSteps.map((x) => <li key={x.action}>{x.action}{x.owner ? ` (${x.owner})` : ""}</li>)}
+              {/* With next steps from the call, keep the page to one sheet: only the steps every deal needs. */}
+              {callSteps.length === 0 && <li>Review this proposal and confirm your employee counts</li>}
               <li>Sign the TriNet Service Agreement</li>
               <li>Submit complete paperwork by the deadline for your target live date</li>
-              <li>Kick off implementation with your TriNet onboarding team</li>
+              {callSteps.length === 0 && <li>Kick off implementation with your TriNet onboarding team</li>}
             </ol>
           </section>
         </div>

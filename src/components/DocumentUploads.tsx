@@ -1,6 +1,6 @@
 import type React from "react";
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, FileText, FileUp, ImageUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, FileUp, ImageUp, Mic, Sparkles } from "lucide-react";
 import { Section, primaryButton, secondaryButton } from "./form";
 import { useQuote } from "../state/QuoteContext";
 import { CURRENT_LINES } from "../state/benefits";
@@ -8,6 +8,7 @@ import type { BssResult } from "../lib/bss/parseBss";
 import type { ChevronData } from "../lib/chevron/parseChevron";
 import { chevronChanges } from "../lib/chevron/importChevron";
 import { formatDate, usd } from "../lib/pricing";
+import { analyzeCall, transcriptMeta, type TranscriptMeta } from "../lib/callInsights";
 
 const MAX_LOGO_BYTES = 1024 * 1024;
 
@@ -16,10 +17,13 @@ export default function DocumentUploads() {
   const bss = useBssImport();
   const chevron = useChevronImport();
   return (
-    <Section title="Documents" description="Upload the prospect's documents to fill in the quote. Files are read in your browser and never uploaded; you can adjust anything afterwards." className="lg:col-span-2">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <Section title="Documents"
+      description="Upload the prospect's documents to fill in the quote; you can adjust anything afterwards. PDFs and logos are read in your browser and never uploaded. Call transcripts are sent to Claude (Anthropic's AI) for analysis."
+      className="lg:col-span-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <BssTile state={bss} />
         <ChevronTile state={chevron} />
+        <GongTile />
         <LogoTile />
       </div>
       {bss.state.step === "preview" && (
@@ -196,6 +200,76 @@ function ChevronPreview({ data: c, onApply, onCancel }: { data: ChevronData; onA
         <button type="button" className={secondaryButton} onClick={onCancel}>Cancel</button>
       </div>
     </div>
+  );
+}
+
+type GongState =
+  | { step: "idle" }
+  | { step: "ready"; fileName: string; text: string; meta: TranscriptMeta }
+  | { step: "analyzing"; fileName: string; meta: TranscriptMeta }
+  | { step: "error"; message: string; retry?: { fileName: string; text: string; meta: TranscriptMeta } };
+
+const MAX_TRANSCRIPT_BYTES = 2 * 1024 * 1024;
+
+// A Gong (or other) call transcript, analyzed by AI into talking points for the executive summary and deck.
+function GongTile() {
+  const { quote, update } = useQuote();
+  const [state, setState] = useState<GongState>({ step: "idle" });
+  const ins = quote.callInsights;
+
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    if (!/\.(txt|vtt|srt)$/i.test(file.name) && !file.type.startsWith("text/")) return setState({ step: "error", message: "Please choose the transcript as a .txt file (Gong: Download transcript)." });
+    if (file.size > MAX_TRANSCRIPT_BYTES) return setState({ step: "error", message: "That transcript is larger than 2 MB." });
+    const text = await file.text();
+    setState({ step: "ready", fileName: file.name, text, meta: transcriptMeta(text) });
+  }
+
+  async function analyze(s: { fileName: string; text: string; meta: TranscriptMeta }) {
+    setState({ step: "analyzing", fileName: s.fileName, meta: s.meta });
+    try {
+      const insights = await analyzeCall(s.text, s.meta, s.fileName, quote.companyName);
+      update({ callInsights: insights });
+      setState({ step: "idle" });
+    } catch (e) {
+      setState({ step: "error", message: e instanceof Error ? e.message : "Couldn't analyze the call.", retry: s });
+    }
+  }
+
+  return (
+    <Tile icon={Mic} title="Call transcript (Gong)" testId="gong-status"
+      status={
+        state.step === "ready" ? (
+          <span className="text-navy">
+            <span className="font-semibold">{state.meta.title || state.fileName}</span>
+            {state.meta.recordedOn && <span className="block">{state.meta.recordedOn}{state.meta.duration ? ` · ${state.meta.duration}` : ""}</span>}
+            {state.meta.speakers.length > 0 && <span className="block">{state.meta.speakers.length} speakers</span>}
+          </span>
+        )
+        : state.step === "analyzing" ? <span role="status" className="text-navy">Analyzing {state.meta.title || state.fileName} with AI. This takes about a minute…</span>
+        : state.step === "error" ? <span role="alert" className="flex items-start gap-1.5 text-alert"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{state.message}</span>
+        : ins ? <span className="flex items-start gap-1.5 text-navy"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-orange-dark" aria-hidden />Analyzed {ins.source.title || ins.source.fileName} on {new Date(ins.source.analyzedAt).toLocaleDateString()}. Review it under Call insights.</span>
+        : "AI turns a call transcript into priorities, pain points and next steps for the executive summary and deck."
+      }>
+      {state.step === "ready" ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={primaryButton} onClick={() => analyze(state)} data-testid="gong-analyze">
+            <Sparkles className="h-4 w-4" aria-hidden /> Analyze with AI
+          </button>
+          <button type="button" className="text-sm text-navy underline" onClick={() => setState({ step: "idle" })}>Cancel</button>
+        </div>
+      ) : state.step === "error" && state.retry ? (
+        <button type="button" className={primaryButton} onClick={() => analyze(state.retry!)}>
+          <Sparkles className="h-4 w-4" aria-hidden /> Try again
+        </button>
+      ) : (
+        <label className={`${primaryButton} cursor-pointer ${state.step === "analyzing" ? "pointer-events-none opacity-60" : ""}`}>
+          <FileUp className="h-4 w-4" aria-hidden /> {ins ? "Analyze another call" : "Upload transcript"}
+          <input id="gong-upload" type="file" accept=".txt,.vtt,.srt,text/plain" className="sr-only" disabled={state.step === "analyzing"}
+            onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
+      )}
+    </Tile>
   );
 }
 

@@ -34,10 +34,115 @@ function fill(xml: string, warnings: string[], from: string, to: string | null, 
   return next;
 }
 
+// Paragraph text as written in the slide XML: its runs joined (runs can split words, e.g. "S" + "treamlining").
+const paragraphs = (xml: string) =>
+  [...xml.matchAll(/<a:p>(?:(?!<\/a:p>).)*?<\/a:p>|<a:p [^>]*>(?:(?!<\/a:p>).)*?<\/a:p>/gs)].map((m) => ({
+    start: m.index!, end: m.index! + m[0].length, raw: m[0],
+    text: [...m[0].matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((t) => t[1]).join(""),
+  }));
+
+// Replace whole paragraphs by their master-deck text. A null replacement removes the paragraph; the first run keeps its
+// formatting and takes the new text, the other runs go. Works from the end so earlier offsets stay valid.
+function replaceParagraphs(xml: string, pairs: [string, string | null][], warnings: string[], what: string) {
+  const found = paragraphs(xml);
+  const edits = pairs.map(([from, to]) => ({ p: found.find((p) => p.text === from), to })).filter((e) => e.p);
+  if (edits.length < pairs.length) warnings.push(`Couldn't find all of the ${what}; some lines still show the master deck's text.`);
+  for (const { p, to } of edits.sort((a, b) => b.p!.start - a.p!.start)) {
+    let next = "";
+    if (to !== null) {
+      let first = true;
+      next = p!.raw.replace(/<a:r>(?:(?!<\/a:r>).)*?<\/a:r>/gs, (run) => {
+        if (!first) return "";
+        first = false;
+        return run.replace(/<a:t>[^<]*<\/a:t>/, `<a:t>${esc(to)}</a:t>`);
+      });
+    }
+    xml = xml.slice(0, p!.start) + next + xml.slice(p!.end);
+  }
+  return xml;
+}
+
+// Pair master-deck lines with new lines; master lines without a new one are removed.
+const pairUp = (master: string[], lines: string[]): [string, string | null][] =>
+  master.map((m, i) => [m, lines[i]?.trim() ? lines[i].trim() : null]);
+
+// Slide 10 "We hear you…": four statements (a fifth is part of the graphic).
+const HEAR_YOU = [
+  "Streamlining HR workflow including added tools and integrations.",
+  "Partnering with an HR experts who are focused on Compliance.",
+  "User friendly technology that will serve to elevate the employee experience.",
+  "Work with an HR partner that provides nonprofit expertise.",
+];
+function personalizeWeHearYou(xml: string, q: QuoteInputs): Fill {
+  const warnings: string[] = [];
+  const lines = q.callInsights?.deck.we_hear_you ?? [];
+  if (!lines.length) return { xml, warnings: ["No call transcript analyzed, so these are the master deck's sample statements."] };
+  // Keep every box filled: the graphic has a fixed number of bars.
+  const filled = HEAR_YOU.map((m, i) => lines[i]?.trim() || m);
+  xml = replaceParagraphs(xml, HEAR_YOU.map((m, i) => [m, filled[i]]), warnings, "We hear you statements");
+  warnings.push("The fifth statement is part of the graphic; edit it in PowerPoint if it doesn't fit.");
+  return { xml, warnings };
+}
+
+// Slide 11 "Current State": six boxes.
+const CURRENT_STATE = [
+  "Desire to improve HRIS / Technology",
+  "Lack of Integration to QBO / Promise",
+  "ProLiant is antiquated; desire return to PEO",
+  "Improved functionality RE scalability / future markets",
+  "Lack of support RE new state tax setup",
+  "Performance MGMT is manual",
+];
+function personalizeCurrentState(xml: string, q: QuoteInputs): Fill {
+  const warnings: string[] = [];
+  const lines = q.callInsights?.deck.current_state ?? [];
+  if (!lines.length) return { xml, warnings: ["No call transcript analyzed, so these are the master deck's sample pain points."] };
+  const filled = CURRENT_STATE.map((m, i) => lines[i]?.trim() || "");
+  xml = replaceParagraphs(xml, CURRENT_STATE.map((m, i) => [m, filled[i]]), warnings, "current state boxes");
+  if (lines.length < 6) warnings.push(`Only ${lines.length} current-state items, so ${6 - lines.length} box(es) are empty: delete them in PowerPoint.`);
+  return { xml, warnings };
+}
+
+// Slide 14 columns (as written in the XML, so "&amp;" stays escaped).
+const EMPLOYEE_LINES = [
+  "Richer benefits, multiple plans and voluntary options",
+  "Significantly enhanced 401(k) options with lower basis points and overall fees",
+  "Ease of Use, End-to-End HR Web &amp; Mobile",
+  "24 HR Support option and expertise RE first call resolution",
+  "Marketplace for all aspects to impact  disposable income",
+];
+const COMPANY_LINES = [
+  "Retain &amp; Attract Top Talent, reduce turnover ",
+  "Included Cloud Apps (Performance MGMT, Expense, ATS and T&amp;A)",
+  "Process and Productivity enhancements achieved with end-to-end integration; direct GL Integration",
+  "Enhanced employee insight and trends supported via advanced reporting and analytics",
+  "Best in class Technology: Mobile App",
+];
+const FINANCIAL_LINES = [
+  "YoY Cost Containment and Predictability",
+  "Transparency of all cost, no hidden fees, Flat $ vs. %",
+  "Preferred tax approach over competitors: SEC 125, SUTA, R&amp;D Tax Credits",
+  "$1M in EPLI, most not hitting policy",
+  "Recovery Credit Program- commitment to Clients",
+  "Reduced 401(k) Fees: both ER and EE",
+];
+
 function personalizeWhatThisMeans(xml: string, q: QuoteInputs): Fill {
   const warnings: string[] = [];
+  const d = q.callInsights?.deck;
+  if (d) {
+    const pairs: [string, string | null][] = [
+      ...pairUp(EMPLOYEE_LINES, d.employee_benefits),
+      ...pairUp(COMPANY_LINES, d.company_benefits),
+      ...pairUp(FINANCIAL_LINES, d.financial_benefits),
+    ];
+    if (d.themes.trim()) pairs.push(["Service, Integration / Technology, Ease of Use ", d.themes.trim()]);
+    xml = replaceParagraphs(xml, pairs, warnings, "slide 14 bullets");
+  } else {
+    warnings.push("No call transcript analyzed, so the three columns are the master deck's sample points.");
+  }
   const name = q.companyName.trim();
-  if (!name) return { xml, warnings: ["No company name yet, so it still reads “Company Name”."] };
+  if (!name) return { xml, warnings: [...warnings, "No company name yet, so it still reads \u201cCompany Name\u201d."] };
   const title = `What this means for ${name}`;
   xml = fill(xml, warnings, "What this means for Company Name", title, "title");
   xml = fitRun(xml, title, 34, 2000);
@@ -139,6 +244,8 @@ function personalizeTimeline(xml: string, q: QuoteInputs): Fill {
 }
 
 const PERSONALIZE: Record<number, (xml: string, q: QuoteInputs) => Fill> = {
+  10: personalizeWeHearYou,
+  11: personalizeCurrentState,
   14: personalizeWhatThisMeans,
   67: personalizePricing,
   69: personalizeTimeline,

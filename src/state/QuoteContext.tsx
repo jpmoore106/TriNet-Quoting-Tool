@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { EMPTY_BENEFITS, normalizeBenefits, type BenefitsInputs } from "./benefits";
 import type { ChevronData } from "../lib/chevron/parseChevron";
+import type { CallInsights } from "../lib/callInsights";
 
 export type PriceBreak = { id: string; headcount: number; pepm: number };
 
@@ -52,6 +53,7 @@ export type QuoteInputs = {
   deck: DeckOptions;
   currentWc: CurrentWc;
   freeMonths: number; // months of Professional Service Fee credited in year one
+  callInsights: CallInsights | null; // AI analysis of a sales call transcript (Gong), edited by the rep
 };
 
 export const EMPTY_QUOTE: QuoteInputs = {
@@ -74,6 +76,7 @@ export const EMPTY_QUOTE: QuoteInputs = {
   deck: { benefitsModel: "trinet", selected: null, paperworkDeadline: "" },
   currentWc: { rows: [], totalPremium: 0, discountedPremium: 0 },
   freeMonths: 0,
+  callInsights: null,
 };
 
 // Fill in fields added since a quote was saved.
